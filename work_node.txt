@@ -1,0 +1,7 @@
+	Print routing table to dsplay, scroll to next if there are more than 6 nodes.
+	Create cmd for wifi, mqtt
+Build send, receive data mechanism
+	Connect to mqtt server, push data to server
+	Build function set role for nodes
+	Build transfer data for user nodes
+
