@@ -326,6 +326,7 @@ void Node::handle_set_date_time()
     date_time_arr[i] = convert_string_to_int(time_buffer, strlen(time_buffer));
   }
   this->_rtc.set_time(date_time_arr[0], date_time_arr[1], date_time_arr[2], date_time_arr[3], date_time_arr[4], date_time_arr[5]);
+  this->_display.send_data_to_display("st_label.txt=\"OK\"");
 }
 /**
  * @brief ...
@@ -358,15 +359,16 @@ void Node::handle_print_data_bucket(int type)
   }
   else if (type == DSP_UP)
   {
-    if (_dsp_current_line_bucket - 5 > 0) _dsp_current_line_bucket -= 5;
+    if (_dsp_current_line_bucket - 5 >= 0) _dsp_current_line_bucket -= 5;
   }
   else if (type == DSP_DOWN)
   {
-    if (_dsp_current_line_bucket + 5 < this->_sensor_file_num_of_lines) _dsp_current_line_bucket += 5;
+    if (_dsp_current_line_bucket + 5 <= this->_sensor_file_num_of_lines) _dsp_current_line_bucket += 5;
   }
+  Serial.printf("------- Current linre %d, total line %d\n",_dsp_current_line_bucket,_sensor_file_num_of_lines);
 
   memset(this->_cmd_buffer, 0, SERIAL_INPUT_MAX_BUFFER);
-  memset(this->_dsp_bucket_buffer, 0, 50);
+  memset(this->_dsp_bucket_buffer, 0, 100);
 
   this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_dsp_bucket_buffer, _dsp_current_line_bucket);
   sprintf(this->_cmd_buffer,"t1.txt=\"%s\\r\"", this->_dsp_bucket_buffer);
@@ -375,11 +377,17 @@ void Node::handle_print_data_bucket(int type)
   for (int i = 1; i < 5; i++)
   {
     memset(this->_cmd_buffer, 0, SERIAL_INPUT_MAX_BUFFER);
-    memset(this->_dsp_bucket_buffer, 0, 50);
+    memset(this->_dsp_bucket_buffer, 0, 100);
     // strcat(this->_cmd_buffer,"t1.txt+=\"");
-    this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_dsp_bucket_buffer, _dsp_current_line_bucket+i);
-    sprintf(this->_cmd_buffer,"t1.txt+=\"%s\\r\"", this->_dsp_bucket_buffer);
-    this->_display.send_data_to_display(this->_cmd_buffer);
+    if (_dsp_current_line_bucket+i <= this->_sensor_file_num_of_lines)
+    {
+      this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_dsp_bucket_buffer, _dsp_current_line_bucket+i);
+    }
+    if (strlen(this->_dsp_bucket_buffer) != 0 )
+    {
+      sprintf(this->_cmd_buffer,"t1.txt+=\"%s\\r\"", this->_dsp_bucket_buffer);
+      this->_display.send_data_to_display(this->_cmd_buffer);
+    }
   }
 }
 /**
@@ -393,7 +401,7 @@ void Node::handle_get_wifi_params()
   memset(this->_wifi_password,0,WIFI_NAME_LEN);
   split_string_char(this->_cmd_buffer,',',2,this->_wifi_password);
 
-  memset(this->_temp_cmd_buffer,0,WIFI_NAME_LEN);
+  memset(this->_temp_cmd_buffer,0,100);
   sprintf(this->_temp_cmd_buffer,"wifi_st_lb.txt=\"Connected to:%s\"", this->_wifi_ssid);
   // do something else
   if (this->_device_flags.current_data_signal == DISPLAY_DATA_SIGNAL)
@@ -406,6 +414,14 @@ void Node::handle_get_wifi_params()
   }
 
   this->_database.write_file(SD, WIFI_FILE_PATH, this->_cmd_buffer, false);
+  handle_get_wifi_ssid();
+}
+
+void Node::handle_get_wifi_ssid()
+{
+  memset(_temp_cmd_buffer,0,100);
+  sprintf(_temp_cmd_buffer,"wifi_st_lb.txt=\"Connected to: %s\"",this->_wifi_ssid);
+  this->_display.send_data_to_display(_temp_cmd_buffer);
 }
 /**
  * @brief ...
@@ -475,6 +491,7 @@ void Node::handle_get_mqtt_params()
   }
 
   this->_database.write_file(SD, MQTT_FILE_PATH, this->_cmd_buffer, false);
+  this->_display.send_data_to_display("st_label.txt=\"OK\"");
 }
 /**
  * @brief ...
@@ -612,7 +629,7 @@ void Node::handle_data_from_actuator_node()
     vTaskDelay(20);
     char c;
     int i = 0;
-    memset(this->_actuator_buffer, 0, SETTING_MAX_BUFFER);
+    memset(this->_actuator_buffer, 0, 100);
     // String command = "";
     while (Serial2.available())
     {
@@ -634,7 +651,7 @@ void Node::handle_data_from_actuator_node()
     else if (this->_device_role == NODE_USER)
     {
       memset(helloPacket->data_str, 0, 50);
-      sprintf(helloPacket->data_str,"SEND_DTS,%s", this->_actuator_buffer);
+      sprintf(helloPacket->data_str,"SDTS,%s", this->_actuator_buffer);
       
       if (this->_device_flags.sink_addr_available_flag == ENABLE)
       {
@@ -699,7 +716,7 @@ int Node::handle_cmd()
  */
 void Node::display_print_nodes(int type)
 {
-  memset(this->_temp_cmd_buffer, 0, 50);
+  memset(this->_temp_cmd_buffer, 0, 100);
 
   if (type == DSP_DOWN)
   {
@@ -780,7 +797,7 @@ int Node::process_cmd()
   else if (str_startswith(this->_cmd_buffer,"SDS")) // SEND Data To Sink : for Sink node
   {
     int pos = get_index_from_string(this->_cmd_buffer, ',', 0);
-    this->_database.append_file(SD, SENSOR_RECORD_FILE_PATH, this->_cmd_buffer + pos + 1,true);
+    this->_database.append_file(SD, SENSOR_RECORD_FILE_PATH, this->_cmd_buffer + pos + 1, false);
     Serial.println("Data sensor saved to file");
     strcpy(this->_data_sensor_buffer,this->_cmd_buffer);
     int msg = SEND_SENSOR_DATA_SIGNAL;
@@ -858,6 +875,10 @@ int Node::process_cmd()
   else if (str_startswith(this->_cmd_buffer, "WIFI_ST")) // WIFI_ST,(ssid),(password) : set wifi ssid and password for sink node
   {
     this->handle_get_wifi_params();
+  }
+  else if (str_startswith(this->_cmd_buffer, "GET_WIFI_SSID")) // WIFI_ST,(ssid),(password) : set wifi ssid and password for sink node
+  {
+    this->handle_get_wifi_ssid();
   }
   else if (str_startswith(this->_cmd_buffer, "MQTT_ST")) // MQTT_ST,(broker),(port),(usr_name),(pass),(topic) : set mqtt params for sink node
   {

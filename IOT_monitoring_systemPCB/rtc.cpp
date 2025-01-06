@@ -28,12 +28,12 @@ IOT_rtc::IOT_rtc(int hours, int minutes, int seconds, int days, int months, int 
 
 void IOT_rtc::begin()
 {
-  this->_rtc = new ESP32Time(3600);  // offset in seconds GMT+1
+  this->_rtc = new ESP32Time(25200);  // offset in seconds GMT+7
   this->_rtc->setTime(this->_date_time.seconds, 
-              this->_date_time.minutes, 
-              this->_date_time.hours, 
-              this->_date_time.days, 
-              this->_date_time.months, 
+              this->_date_time.minutes,
+              this->_date_time.hours,
+              this->_date_time.days,
+              this->_date_time.months,
               this->_date_time.years);  // 17th Jan 2021 15:24:30
 
   Serial.println("RTC begins");
@@ -41,12 +41,12 @@ void IOT_rtc::begin()
 
 void IOT_rtc::begin(int hours, int minutes, int seconds, int days, int months, int years)
 {
-  this->_rtc = new ESP32Time(3600);  // offset in seconds GMT+1
-  this->_rtc->setTime(seconds, 
-              minutes, 
-              hours-1, 
-              days, 
-              months, 
+  this->_rtc = new ESP32Time(0);  // offset in seconds GMT+1
+  this->_rtc->setTime(seconds,
+              minutes,
+              hours-1,
+              days,
+              months,
               years);  // 17th Jan 2021 15:24:30
 
   Serial.println("RTC begins");
@@ -54,7 +54,7 @@ void IOT_rtc::begin(int hours, int minutes, int seconds, int days, int months, i
 
 void IOT_rtc::set_time(int hours, int minutes, int seconds, int days, int months, int years)
 {
-  this->_rtc->setTime(seconds, 
+  this->_rtc->setTime(seconds,
               minutes, 
               hours-1, 
               days, 

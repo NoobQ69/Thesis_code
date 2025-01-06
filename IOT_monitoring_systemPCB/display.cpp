@@ -73,13 +73,17 @@ void IOT_display::print_page_on_display(int page_num)
   }
   else if (page_num == 3)
   {
-    this->send_data_to_display("page setting_page");
+    this->send_data_to_display("page manual_page");
   }
   else if (page_num == 4)
   {
-    this->send_data_to_display("page manual_page");
+    this->send_data_to_display("page bucket_page");
   }
   else if (page_num == 5)
+  {
+    this->send_data_to_display("page note_page");
+  }
+  else if (page_num == 6)
   {
     this->send_data_to_display("page about_page");
   }

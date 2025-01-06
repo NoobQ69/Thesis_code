@@ -9,7 +9,7 @@ int db_delay_timeout_flag = 0;
 int db_send_data_timeout_flag = 0;
 
 // char Dsp_ET_current_label[][10] = {"b4.txt=\"","b5.txt=\"","b6.txt=\"","b7.txt=\""};
-char Dsp_MT_current_label[][8] = {"n0.val=","n1.val=","n2.val=","n3.val=","n4.val=","n5.val="};
+char Dsp_MT_current_label[][10] = {"n6.val=","n7.val=","n8.val=","n9.val=","n10.val=","n11.val="};
 char Event_time_string_temp[20];
 
 long long int Timer_counter = 0;
@@ -32,27 +32,27 @@ void IOT_device::send_sensor_data_to_display()
 {
   String cmd_display = "";
   cmd_display = "co2_label.txt=\"";
-  cmd_display += String(this->_sensors.get_data_co2());
+  cmd_display += String(this->_dsp_sensors_data_bucket.co2_data);
   cmd_display += "\"";
   this->_display.send_data_to_display(cmd_display.c_str());
   cmd_display = "no2_label.txt=\"";
-  cmd_display += String(this->_sensors.get_data_no2());
+  cmd_display += String(this->_dsp_sensors_data_bucket.n2o_data);
   cmd_display += "\"";
   this->_display.send_data_to_display(cmd_display.c_str());
   cmd_display = "ch4_label.txt=\"";
-  cmd_display += String(this->_sensors.get_data_ch4());
+  cmd_display += String(this->_dsp_sensors_data_bucket.ch4_data);
   cmd_display += "\"";
   this->_display.send_data_to_display(cmd_display.c_str());
   cmd_display = "temp_label.txt=\"";
-  cmd_display += String(this->_sensors.get_data_temp_humid(0));
+  cmd_display += String(this->_dsp_sensors_data_bucket.temp_data);
   cmd_display += "\"";
   this->_display.send_data_to_display(cmd_display.c_str());
   cmd_display = "humid_label.txt=\"";
-  cmd_display += String(this->_sensors.get_data_temp_humid(1));
+  cmd_display += String(this->_dsp_sensors_data_bucket.humid_data);
   cmd_display += "\"";
   this->_display.send_data_to_display(cmd_display.c_str());
   cmd_display = "p_label.txt=\"";
-  cmd_display += String(this->_sensors.get_data_pressure());
+  cmd_display += String(this->_dsp_sensors_data_bucket.pressure_data);
   cmd_display += "\"";
   this->_display.send_data_to_display(cmd_display.c_str());
 }
@@ -91,7 +91,7 @@ IOT_device::IOT_device()
   this->_my_timer                           = NULL;
   // this->_sensor_buffer                      = "";
   this->_timeout_chamber_door               = ACTUATORS_TIMEOUT_CHAMBER_DOOR;
-  memset(this->_buffer, 0, SERIAL_INPUT_MAX_BUFFER);
+  memset(this->_buffer, 0, CMD_MAX_BUFFER);
   _store_db_msg_queue = xQueueCreate(3, sizeof(int));
   this->_LoRa_msg_queue = xQueueCreate(2, sizeof(int));
   this->_cmd_msg_queue = xQueueCreate(10, sizeof(int));
@@ -184,11 +184,13 @@ int IOT_device::begin()
   {
     this->_sensor_data_len = 0;
   }
+  memset(this->_buffer,0,CMD_MAX_BUFFER);
   if (this->_database.read_file(SD, DATA_REMAIN_FILE_PATH, this->_buffer, &temp) == DATABASE_ERROR_FAILED_OPEN_FILE)
   {
     this->_database.write_file(SD, DATA_REMAIN_FILE_PATH, "0", false);
   }
-  _sensor_data_remain = (int)strtol(this->_buffer, NULL, 10);
+  Serial.printf("Current line str: %s",this->_buffer);
+  _sensor_data_remain = convert_string_to_int(this->_buffer, strlen(this->_buffer));
   Serial.printf("SS remain line: %d",_sensor_data_remain);
   Serial.printf("SS line: %d",_sensor_data_len);
   if (_sensor_data_remain <= this->_sensor_data_len)
@@ -198,9 +200,9 @@ int IOT_device::begin()
   if (_sensor_data_remain > this->_sensor_data_len)
   {
     this->_device_flags.data_sensor_remaining_flag = SET;
-    while (_sensor_data_remain >= this->_sensor_data_len)
+    while (_sensor_data_remain > this->_sensor_data_len+1)
     {
-      _sensor_data_remain -= 5;
+      _sensor_data_remain -= 1;
       if (_sensor_data_remain <= 0) {_sensor_data_remain = 0; break;}
     }
   }
@@ -332,7 +334,7 @@ void IOT_device::reset_measure_event_params()
   this->_device_on_state = DEVICE_ON_IDLE;
 }
 
-bool IOT_device::check_is_measure_event_start()
+bool IOT_device::check_is_measure_event_started()
 {
   int len = this->_measure_events.event_time.number_of_event_time;
   for (int i = 0; i < len; i++)
@@ -684,69 +686,60 @@ void IOT_device::handle_print_data_bucket(int type)
   if (this->_device_role == NODE_GATEWAY || this->_device_role == NODE_USER)
   {
     this->_display.send_data_to_display("page note_page");
-    this->_display.send_data_to_display("notify_label.txt=\"This monitor is only for sink node and !\"");
+    this->_display.send_data_to_display("notify_label.txt=\"Monitor only for sink and actuator nodes!\"");
     return;
   }
 
   if (type == DSP_ENTER)
   {
-    if (xSemaphoreTake(_database_mutex, 100) == pdTRUE)
-    {
-      this->_database.get_number_of_line(SD, SENSOR_RECORD_FILE_PATH, &this->_sensor_file_num_of_lines);
-      xSemaphoreGive(_database_mutex);
-    }
+    this->_database.get_number_of_line(SD, SENSOR_RECORD_FILE_PATH, &this->_sensor_file_num_of_lines);
   }
   else if (type == DSP_UP)
   {
-    if (_dsp_current_line_bucket - 5 > 0) _dsp_current_line_bucket -= 5;
+    if (_dsp_current_line_bucket - 5 >= 0) _dsp_current_line_bucket -= 5;
   }
   else if (type == DSP_DOWN)
   {
-    if (_dsp_current_line_bucket + 5 < this->_sensor_file_num_of_lines) _dsp_current_line_bucket += 5;
+    if (_dsp_current_line_bucket + 5 <= this->_sensor_file_num_of_lines) _dsp_current_line_bucket += 5;
   }
+  Serial.printf("------- Current linre %d, total line %d\n",_dsp_current_line_bucket,_sensor_file_num_of_lines);
 
-  memset(this->_buffer, 0, SERIAL_INPUT_MAX_BUFFER);
-  memset(this->_dsp_bucket_buffer, 0, SERIAL_INPUT_MAX_BUFFER);
+  memset(this->_buffer, 0, CMD_MAX_BUFFER);
+  memset(this->_dsp_bucket_buffer, 0, 100);
 
-  // strcat(this->_buffer,"t1.txt=\"");
-  if (xSemaphoreTake(_database_mutex, 100) == pdTRUE)
-  {
-    this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_dsp_bucket_buffer, _dsp_current_line_bucket);
-    xSemaphoreGive(_database_mutex);
-  }
+  this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_dsp_bucket_buffer, _dsp_current_line_bucket);
   sprintf(this->_buffer,"t1.txt=\"%s\\r\"", this->_dsp_bucket_buffer);
-  // strcat(this->_buffer,this->_dsp_bucket_buffer);
-  // strcat(this->_buffer,"\\r\"");
   this->_display.send_data_to_display(this->_buffer);
   
   for (int i = 1; i < 5; i++)
   {
-    memset(this->_buffer, 0, SERIAL_INPUT_MAX_BUFFER);
-    memset(this->_dsp_bucket_buffer, 0, SERIAL_INPUT_MAX_BUFFER);
-    // strcat(this->_buffer,"t1.txt+=\"");
-    if (xSemaphoreTake(_database_mutex, 100) == pdTRUE)
+    memset(this->_buffer, 0, CMD_MAX_BUFFER);
+    memset(this->_dsp_bucket_buffer, 0, 100);
+    // strcat(this->_cmd_buffer,"t1.txt+=\"");
+    if (_dsp_current_line_bucket+i <= this->_sensor_file_num_of_lines)
     {
       this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_dsp_bucket_buffer, _dsp_current_line_bucket+i);
-      xSemaphoreGive(_database_mutex);
     }
-    sprintf(this->_buffer,"t1.txt+=\"%s\\r\"", this->_dsp_bucket_buffer);
-    // strcat(this->_buffer,this->_dsp_bucket_buffer);
-    // strcat(this->_buffer,"\\r\"");
-    this->_display.send_data_to_display(this->_buffer);
+    if (strlen(this->_dsp_bucket_buffer) != 0 )
+    {
+      sprintf(this->_buffer,"t1.txt+=\"%s\\r\"", this->_dsp_bucket_buffer);
+      this->_display.send_data_to_display(this->_buffer);
+    }
   }
 }
 
 int IOT_device::save_data_to_database()
 {
   int i = 0;
-  memset(this->_sensor_buffer,0,SENSOR_MAX_BUFFER);  
-  sprintf(this->_sensor_buffer,"%d,%d,%.2f,%.2f,%.2f,%d",
-          this->_sensors_data_bucket.co2_data, 
+  memset(this->_sensor_buffer, 0, SENSOR_MAX_BUFFER);  
+  sprintf(this->_sensor_buffer,"%d,%d,%.2f,%.2f,%.2f,%d,%s",
+          this->_sensors_data_bucket.co2_data,
           this->_sensors_data_bucket.ch4_data,
           this->_sensors_data_bucket.n2o_data,
           this->_sensors_data_bucket.temp_data,
           this->_sensors_data_bucket.humid_data,
-          this->_sensors_data_bucket.pressure_data
+          this->_sensors_data_bucket.pressure_data,
+          this->_rtc.get_data_time().c_str()
           );
     // store to database
   while (i < 6)
@@ -779,27 +772,37 @@ void IOT_device::handle_save_to_database()
   {
     if (this->_device_flags.data_sensor_remaining_flag == SET)
     {
-      Serial.println("DB: sending data sensor...");
       tick = 0;
-      memset(this->_sensor_buffer, 0, SENSOR_MAX_BUFFER);
-      
-      if (xSemaphoreTake(_database_mutex, 100) == pdTRUE)
+      Serial.println("DB: sending data sensor...");
+      Serial.printf("Current line %d\n",this->_sensor_data_remain);
+      Serial.printf("Total line %d\n",this->_sensor_data_len);
+      if ( this->_sensor_data_remain > this->_sensor_data_len)
       {
-        this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_sensor_buffer, this->_sensor_data_remain);
-        xSemaphoreGive(_database_mutex);
+        Serial.println("DB: data reach final line");
+        this->_device_flags.data_sensor_remaining_flag = RESET;
       }
-      // read data sensor and store to db buffer
-      sprintf(this->_database_buffer, "SDS,%s",this->_sensor_buffer);
-      // notify cmd task to read data
-      int msg = DATABASE_DATA_SIGNAL;
-      if (xQueueSend(this->_cmd_msg_queue, (void *)&msg, 100) != pdTRUE)
+      else
       {
-        Serial.println("From Database: CMD event queue is full");
-      }
+        memset(this->_sensor_buffer, 0, SENSOR_MAX_BUFFER);
+        
+        if (xSemaphoreTake(_database_mutex, 100) == pdTRUE)
+        {
+          this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_sensor_buffer, this->_sensor_data_remain);
+          xSemaphoreGive(_database_mutex);
+        }
+        // read data sensor and store to db buffer
+        sprintf(this->_database_buffer, "MFSN,SDS,%s",this->_sensor_buffer);
+        // notify cmd task to read data
+        int msg = DATABASE_DATA_SIGNAL;
+        if (xQueueSend(this->_cmd_msg_queue, (void *)&msg, 100) != pdTRUE)
+        {
+          Serial.println("From Database: CMD event queue is full");
+        }
 
-      // start timer to check timeout
-      block_sending_var = ENABLE;
-      xTimerStart(_db_wait_timeout_timer, portMAX_DELAY);
+        // start timer to check timeout
+        block_sending_var = ENABLE;
+        xTimerStart(_db_wait_timeout_timer, portMAX_DELAY);
+      }
     }
     else
     {
@@ -813,11 +816,12 @@ void IOT_device::handle_save_to_database()
     if (item == SAVE_DATA_SENSOR_SIGNAL)
     {
       this->save_data_to_database();
+      this->_dsp_sensors_data_bucket = this->_sensors_data_bucket;
       this->send_sensor_data_to_display();
       this->reset_sensor_data();
       this->_sensor_data_len += 1;
       this->_device_flags.data_sensor_remaining_flag = SET;
-      block_sending_var = DISABLE;
+      // block_sending_var = DISABLE;
     }
     else if (item == DATABASE_SEND_DATA_TIMEOUT_SIGNAL)
     {
@@ -834,16 +838,13 @@ void IOT_device::handle_save_to_database()
       xTimerStop(_db_wait_timeout_timer, portMAX_DELAY);
       block_sending_var = DISABLE;
       this->_device_flags.data_sensor_remaining_flag = SET;
-      this->_sensor_data_remain += 1;
+      if (this->_sensor_data_remain <= this->_sensor_data_len)
+        this->_sensor_data_remain += 1;
+      
       if (xSemaphoreTake(_database_mutex, 100) == pdTRUE)
       {
         this->_database.write_file(SD, DATA_REMAIN_FILE_PATH, String(this->_sensor_data_remain).c_str(),false);
         xSemaphoreGive(_database_mutex);
-      }
-      if ( this->_sensor_data_remain > this->_sensor_data_len)
-      {
-        Serial.println("DB: data reach final line");
-        this->_device_flags.data_sensor_remaining_flag = RESET;
       }
     }
     else if (item == DELAY_TIMEOUT_SIGNAL)
@@ -911,6 +912,11 @@ void IOT_device::handle_set_date_time()
     date_time_arr[i] = convert_string_to_int(time_buffer, strlen(time_buffer));
   }
   this->_rtc.set_time(date_time_arr[0], date_time_arr[1], date_time_arr[2], date_time_arr[3], date_time_arr[4], date_time_arr[5]);
+
+  if (this->_device_flags.current_data_signal == DISPLAY_DATA_SIGNAL)
+  {
+    this->_display.send_data_to_display("st_label.txt=\"OK\"");
+  }
 }
 
 void IOT_device::handle_save_setting()
@@ -962,7 +968,7 @@ int IOT_device::on()
     case DEVICE_ON_IDLE:
     {
       // Serial.printf("state: %d\n",this->_device_on_state);
-      if (this->check_is_measure_event_start())
+      if (this->check_is_measure_event_started())
       {
         this->_device_on_state = DEVICE_ON_START_MEASURE_EVENT;
       }
@@ -977,6 +983,7 @@ int IOT_device::on()
     }
     case DEVICE_ON_START_MEASURE_EVENT:
     {
+      this->display_update_device_state();
       this->timer_start();
       // close the chamber and check if timeout occured
       // check sensor is already
@@ -1190,6 +1197,7 @@ int IOT_device::on()
 
 void IOT_device::off()
 {
+  this->display_update_device_state();
   this->reset_measure_event_params();
   return;
 }
@@ -1241,7 +1249,7 @@ void IOT_device::handle_command_serial()
     vTaskDelay(20);
     char c;
     int i = 0;
-    memset(this->_serial_buffer, 0, SETTING_MAX_BUFFER);
+    memset(this->_serial_buffer, 0, SERIAL_INPUT_MAX_BUFFER);
     // String command = "";
     while (Serial.available())
     {
@@ -1346,7 +1354,14 @@ void IOT_device::display_update_device_state()
 {
   if (this->_device_state == DEVICE_STATE_ON)
   {
-    this->_display.send_data_to_display("t1.txt=\"ON\"");
+    if (this->_device_on_state > DEVICE_ON_IDLE)
+    {
+      this->_display.send_data_to_display("t1.txt=\"ON SAMPLE\"");
+    }
+    else
+    {
+      this->_display.send_data_to_display("t1.txt=\"ON\"");
+    }
   }
   else
   {
@@ -1458,24 +1473,35 @@ int IOT_device::process_cmd()
   {
     // Serial.println("PASS");
     this->set_device_state(0);
-    if (this->_device_flags.current_data_signal == DISPLAY_DATA_SIGNAL){}
+    if (this->_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+    {
+      Serial2.println("MFSN,NRESP,0");
+    }
       this->display_update_device_state();
   }
   else if (str_startswith(this->_buffer, "DEVICE_OFF"))
   {
     this->set_device_state(1);
-    if (this->_device_flags.current_data_signal == DISPLAY_DATA_SIGNAL){}
-      this->display_update_device_state();
+    if (this->_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+      Serial2.println("MFSN,NRESP,1");
+    
+    this->display_update_device_state();
   }
-  else if (str_startswith(this->_buffer, "DEVICE_SAMPLE"))  { this->set_device_state(2); }
+  else if (str_startswith(this->_buffer, "DEVICE_SAMPLE")) 
+  { 
+    if (this->_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+      Serial2.println("MFSN,NRESP,2");
+  
+    this->set_device_state(2); 
+  }
   else if (str_startswith(this->_buffer, "FORCE_EVENT_ON"))  { this->_device_flags.forcing_to_event_flag = ENABLE; }
   else if (str_startswith(this->_buffer, "F12_ON"))          { this->_actuators.set_actuators_pin(FAN_1_PIN, HIGH); }
   else if (str_startswith(this->_buffer, "F12_OFF"))         { this->_actuators.set_actuators_pin(FAN_1_PIN, LOW); }
-  else if (str_startswith(this->_buffer, "CYLINDER_ON"))          { 
+  else if (str_startswith(this->_buffer, "CYLINDER_ON")) { 
     this->_actuators.set_actuators_pin(CYLINDER_1_PIN, HIGH); 
     this->_actuators.set_actuators_pin(CYLINDER_2_PIN, LOW); 
   }
-  else if (str_startswith(this->_buffer, "CYLINDER_OFF"))         { 
+  else if (str_startswith(this->_buffer, "CYLINDER_OFF")) { 
     this->_actuators.set_actuators_pin(CYLINDER_1_PIN, LOW); 
     this->_actuators.set_actuators_pin(CYLINDER_2_PIN, HIGH); 
   }
@@ -1486,16 +1512,13 @@ int IOT_device::process_cmd()
   } 
   // else if (str_startswith(this->_buffer, "CYLINDER2_ON"))          { this->_actuators.set_actuators_pin(PUMP_1_PIN, HIGH); }
   // else if (str_startswith(this->_buffer, "CYLINDER2_OFF"))         { this->_actuators.set_actuators_pin(PUMP_1_PIN, LOW); }
-  else if (str_startswith(this->_buffer, "SDS")) // SDS,(data sensor)
+  else if (str_startswith(this->_buffer, "MFSN,SDS")) // SDS,(data sensor)
   {
-    if (strlen(this->_buffer) > 74)
+      // Serial.println("Data send to sink node is too long! Ignore");
+    int msg = DATABASE_SEND_DATA_SUCCESSFULLY_SIGNAL;
+    if (xQueueSend(this->_store_db_msg_queue, (void *)&msg, 100) != pdTRUE)
     {
-      Serial.println("Data send to sink node is too long! Ignore");
-      int msg = DATABASE_SEND_DATA_SUCCESSFULLY_SIGNAL;
-      if (xQueueSend(this->_store_db_msg_queue, (void *)&msg, 100) != pdTRUE)
-      {
-        Serial.println("From cmd : db event queue is full");
-      }
+      Serial.println("From cmd : db event queue is full");
     }
     else
     {
@@ -1568,8 +1591,16 @@ int IOT_device::process_cmd()
     this->_database.list_directory(SD, "/", 3);
   }
   else if (str_startswith(this->_buffer, "GET_NODE_ROLE")) // GET_NODE_ROLE
-  { 
+  {
     this->handle_get_node_role();
+  }
+  else if (str_startswith(this->_buffer, "F_SSD_DEL_A")) // File SenSor Data DELete All : delete all data in sensor_record.txt
+  { 
+    this->_database.write_file(SD, SENSOR_RECORD_FILE_PATH, " ", false);
+  }
+  else if (str_startswith(this->_buffer, "F_SSD_R")) // File SenSor Data Read : read data in sensor_record.txt
+  { 
+    this->_database.print_file_to_serial(SD, SENSOR_RECORD_FILE_PATH);
   }
   else if (str_startswith(this->_buffer, "DSP_SYS_STATE")) // for Display
   {
@@ -1601,6 +1632,10 @@ int IOT_device::process_cmd()
   {
     this->handle_print_data_bucket(DSP_DOWN);
   }
+  else if (str_startswith(this->_buffer, "DSP_GMSSD")) // for Display
+  {
+    this->send_sensor_data_to_display();
+  }
   else
   {
     Serial.println("Invalid command! Check is correct syntax");
@@ -1611,11 +1646,18 @@ int IOT_device::process_cmd()
 
 void IOT_device::handle_buttons_input()
 {
-  if (this->_buttons.read(BUTTON_4, NULL) == ON)
+  if (this->_buttons.read(BUTTON_1, NULL) == ON)
   {
+    if (this->_device_flags.current_page_flag != 2)
+    {
+      this->_device_flags.current_page_flag = 2;
+      this->_display.print_page_on_display(this->_device_flags.current_page_flag);
+    }
 
+    this->set_device_state(DEVICE_STATE_OFF);
+    on_buzzer();
   }
-  else if (this->_buttons.read(BUTTON_2, NULL) == ON)
+  else if (this->_buttons.read(BUTTON_4, NULL) == ON)
   {
     this->_device_flags.current_page_flag = (this->_device_flags.current_page_flag+1) % PAGE_MAX_NUMBER;
     this->_display.print_page_on_display(this->_device_flags.current_page_flag);
@@ -1624,18 +1666,29 @@ void IOT_device::handle_buttons_input()
   }
   else if (this->_buttons.read(BUTTON_3, NULL) == ON)
   {
-    if (this->get_device_state() == DEVICE_STATE_OFF || this->get_device_state() == DEVICE_STATE_FLOAT)
+    if (this->_device_flags.current_page_flag != 2)
     {
-      this->set_device_state(DEVICE_STATE_ON);
+      this->_device_flags.current_page_flag = 2;
+      this->_display.print_page_on_display(this->_device_flags.current_page_flag);
     }
-    else
-    {
-      this->set_device_state(DEVICE_STATE_OFF);
-    }
+    // if (this->get_device_state() == DEVICE_STATE_OFF || this->get_device_state() == DEVICE_STATE_FLOAT)
+    // {
+    this->set_device_state(DEVICE_STATE_ON);
+    // }
+    // else
+    // {
+      // this->set_device_state(DEVICE_STATE_OFF);
+    // }
     on_buzzer();
   }
-  else if (this->_buttons.read(BUTTON_1, NULL) == ON)
+  else if (this->_buttons.read(BUTTON_2, NULL) == ON)
   {
+    if (this->_device_flags.current_page_flag != 2)
+    {
+      this->_device_flags.current_page_flag = 2;
+      this->_display.print_page_on_display(this->_device_flags.current_page_flag);
+    }
+
     if (this->get_device_state() == DEVICE_STATE_ON)
     {
       this->_device_flags.forcing_to_event_flag = ENABLE;

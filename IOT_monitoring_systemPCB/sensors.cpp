@@ -1,3 +1,5 @@
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 #include "freertos/portmacro.h"
 #include "esp32-hal-adc.h"
 #include "SoftwareSerial.h"
@@ -261,28 +263,6 @@ int SHT30::read()
   return SENSOR_DHT30_ERR_READ_DATA_FAILED;
 }
 
-// int SHT30::read(int time_ms, int number_of_sampling = 5)
-// {
-//   int state = 0;
-//   long long int temp = 0, humid = 0;
-//   Serial.print("Reading temp and humid value");
-//   for (int i = 0; i < number_of_sampling; i++)
-//   {
-//     state = this->read();
-//     temp += this->_sht30_data.temp;
-//     humid += this->_sht30_data.humid;
-//     vTaskDelay(time_ms/portTICK_PERIOD_MS);
-//     Serial.print(".");
-//   }
-//   Serial.println();
-//   temp /= number_of_sampling;
-//   humid /= number_of_sampling;
-//   this->_sht30_data.temp = temp;
-//   this->_sht30_data.humid = humid;
-
-//   return state;
-// }
-
 float SHT30::get_data(int type = 0)
 {
   if (type == 0)
@@ -392,93 +372,6 @@ int CO2::getCO2()
   mySerial.begin(9600);
   return getSensorValue(_queryCO2, 8, 3);
 }
-// CH4_fermion::CH4_fermion()
-// {
-
-// }
-
-// CH4_fermion::~CH4_fermion()
-// {}
-
-// void CH4_fermion::begin()
-// {
-//   return;
-// }
-
-// int CH4_fermion::read()
-// {
-//   // uint16_t temp = map_value(analogRead(CH4_SENSOR_PIN), );
-//   this->_fermion_data = analogRead(CH4_SENSOR_PIN);
-
-//   return 0;
-// }
-
-// int CH4_fermion::read(int time_ms, int number_of_sampling = 5)
-// {
-//   long long int ch4 = 0;
-//   Serial.print("Reading ch4 value");
-//   for (int i = 0; i < number_of_sampling; i++)
-//   {
-//     this->read();
-//     Serial.print(".");
-//     ch4 += this->_fermion_data;
-//     vTaskDelay(time_ms/portTICK_PERIOD_MS);
-//   }
-//   Serial.println();
-//   ch4 /= number_of_sampling;
-//   this->_fermion_data = ch4;
-  
-//   return 0;
-// }
-
-// long long int CH4_fermion::get_data()
-// {
-//   return this->_fermion_data;
-// }
-
-/* 
- *  CO2 sensor 
- */
-
-// MG811::MG811()
-// {
-
-// }
-
-// MG811::~MG811()
-// {}
-
-// void MG811::begin()
-// {
-//   return;
-// }
-
-// int MG811::read()
-// {
-//   this->_mg811_data = analogRead(CO2_SENSOR_PIN);
-//   return 0;
-// }
-
-// int MG811::read(int time_ms, int number_of_sampling = 5)
-// {
-//   long long int co2 = 0;
-//   Serial.print("Reading co2 value");
-//   for (int i = 0; i < number_of_sampling; i++)
-//   {
-//     this->read();
-//     co2 += this->_mg811_data;
-//     vTaskDelay(time_ms/portTICK_PERIOD_MS);
-//     Serial.print(".");
-//   }
-//   co2 /= number_of_sampling;
-//   this->_mg811_data = co2;
-//   return 0;
-// }
-
-// long long int MG811::get_data()
-// {
-//   return this->_mg811_data;
-// }
 
 /* 
  *  NO2 sensor 
@@ -503,23 +396,6 @@ int CJMCU_6814::read()
   // this->_cjmcu_6814_data = analogRead(NO2_SENSOR_PIN);
   return 0;
 }
-
-// int CJMCU_6814::read(int time_ms, int number_of_sampling = 5)
-// {
-//   long long int no2 = 0;
-//   Serial.print("Reading no2 value");
-//   for (int i = 0; i < number_of_sampling; i++)
-//   {
-//     this->read();
-//     no2 += this->_cjmcu_6814_data;
-//     vTaskDelay(time_ms/portTICK_PERIOD_MS);
-//     Serial.print(".");
-//   }
-//   Serial.println();
-//   no2 /= number_of_sampling;
-//   this->_cjmcu_6814_data = no2;
-//   return 0;
-// }
 
 float CJMCU_6814::get_data()
 {
@@ -570,23 +446,6 @@ int BMP180::read()
     this->_bmp180_data = 100000 + random(1,999);
   return 0;
 }
-
-// int BMP180::read(int time_ms, int number_of_sampling = 5)
-// {
-//   long long int pressure = 0;
-//   Serial.print("Reading pressure value");
-//   for (int i = 0; i < number_of_sampling; i++)
-//   {
-//     this->read();
-//     pressure += this->_bmp180_data;
-//     vTaskDelay(time_ms/portTICK_PERIOD_MS);
-//     Serial.print(".");
-//   }
-//   Serial.println();
-//   pressure /= number_of_sampling;
-//   this->_bmp180_data = pressure;
-//   return 0;
-// }
 
 long long int BMP180::get_data()
 {

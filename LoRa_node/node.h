@@ -35,6 +35,13 @@ typedef struct
 class Node
 {
   private:
+      int                   _dsp_current_line_bucket;
+    int                   _dsp_current_page_node_addr;
+    int                   _sensor_file_num_of_lines;
+    uint16_t              _dsp_node_addr[LORA_MAX_NODE_ADDRESS];
+    uint16_t              _dsp_current_node_addr;
+    uint16_t              _sink_node_addr;
+    Node_flags_t          _device_flags;
     char _wifi_ssid[WIFI_NAME_LEN];
     char _wifi_password[WIFI_PASS_LEN];
 
@@ -56,13 +63,7 @@ class Node
     char _data_sensor_buffer[100];
     
     
-    int                   _dsp_current_line_bucket;
-    int                   _dsp_current_page_node_addr;
-    int                   _sensor_file_num_of_lines;
-    uint16_t              _dsp_node_addr[LORA_MAX_NODE_ADDRESS];
-    uint16_t              _dsp_current_node_addr;
-    uint16_t              _sink_node_addr;
-    Node_flags_t          _device_flags;
+
 
     Database _database;
     Rtc _rtc;
@@ -103,6 +104,7 @@ class Node
     void handle_print_data_bucket(int type);
 
     void handle_get_wifi_params();
+    void handle_get_wifi_ssid();
     int connect_to_wifi(const char *ssid, const char *pass);
     void handle_get_mqtt_params();
     void mqtt_setup();

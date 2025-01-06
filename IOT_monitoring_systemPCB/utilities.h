@@ -1,13 +1,19 @@
+/*****************************************************************************
+* @file device.h
+* device.h header file
+*
+*                           IoT Lab 2024
+*                    ------------------------
+*                               CTU
+*
+* This header file is the definition of IOT_device class.
+*
+* Contact information:
+* <www.>
+* <.@gmail.com>
+*****************************************************************************/
 #ifndef IOT_MONITORING_SYSTEM_UTILITIES_H_
 #define IOT_MONITORING_SYSTEM_UTILITIES_H_
-
-/* MACROS DEFINITION CONVENTION
-
-  0x3210
-  num 0, 1: error code
-  num 2, 3: identity between classes 
-
- */
 
 #define ENABLE                                    1
 #define DISABLE                                   0
@@ -18,10 +24,15 @@
 #define VALID                                     ENABLE
 #define INVALID                                   DISABLE
 
-/* DEVICE MACROS */
+/* TASK BUFFER MACROS */
+#define CMD_MAX_BUFFER                            100
 #define SERIAL_INPUT_MAX_BUFFER                   100
 #define SETTING_MAX_BUFFER                        100
-#define SENSOR_MAX_BUFFER                        100
+#define SENSOR_MAX_BUFFER                         100
+#define DISPLAY_MAX_BUFFER                        100
+#define DATABASE_MAX_BUFFER                       100
+#define LORA_MAX_BUFFER                           100
+#define BUTTON_MAX_BUFFER                         100
 
 #define DEVICE_STATE_ON                           0
 #define DEVICE_STATE_OFF                          1
@@ -95,6 +106,15 @@ enum
   DEVICE_ON_FAN_STILL_TIME,
 };
 
+/* MACROS STATE CODE FOR CLASS FUNCTIONS
+
+  0x3210
+  num 0, 1: error code
+  num 2, 3: identity between classes 
+
+ */
+
+/* TASK MACROS */
 #define DEVICE_SUCCESS_INIT_DISPLAY_TASK          0x0010
 #define DEVICE_ERR_INIT_DISPLAY_TASK              0x0011
 
@@ -142,6 +162,8 @@ enum
 #define DATABASE_ERROR_RENAME_FILE                0x0110
 #define DATABASE_ERROR_DELETE_FILE                0x0111
 
+/* need to add more macros ... */
+
 /* INDICATOR SERIAL CMD */
 #define CMD_SET_V2_DISCHARGE_TIME                 0
 #define CMD_SET_MEASURE_TIME                      1
@@ -150,15 +172,17 @@ enum
 #define CMD_SET_SENSOR_TIME_MEASURE_INTERVAL      4
 #define CMD_SET_SENSOR_SAMPLING_NUMBER            5
 
-/*
-ACTUATOR MACROS*/
+ /*
+  ACTUATOR MACROS
+  */
 #define ACTUATORS_DOOR_CLOSED                       1
 #define ACTUATORS_DOOR_OPEN                         0
 #define ACTUATORS_TIMEOUT_CHAMBER_DOOR              5 // 5 sec
 
 /*
-DISPLAY MACROS*/
-#define PAGE_MAX_NUMBER 6
+ DISPLAY MACROS
+ */
+#define PAGE_MAX_NUMBER 7
 #define DSP_ENTER 0
 #define DSP_UP 1
 #define DSP_DOWN 2

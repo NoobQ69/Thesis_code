@@ -171,11 +171,38 @@ int IOT_database::read_file(fs::FS &fs, const char * path, char *text_str, int *
   {
     c = file.read();
     text_str[i] = c;
-    
+    i++;
     if (c == '\n') 
     {
       line_total += 1;
     }
+  }
+  
+  file.close();
+
+  return DATABASE_SUCCESS_READ_FILE;
+}
+
+int  IOT_database::print_file_to_serial(fs::FS &fs, const char * path)
+{
+  Serial.printf("Reading file: %s\n", path);
+  File file = fs.open(path);
+
+  if(!file) 
+  {
+    Serial.println("Failed to open file for printing");
+    return DATABASE_ERROR_FAILED_OPEN_FILE;
+  }
+
+  int i = 0;
+  char c;
+
+  while(file.available()) 
+  {
+    c = file.read();
+    Serial.print(c);
+    // text_str[i] = c;
+    i++;
   }
   
   file.close();
@@ -211,7 +238,7 @@ int IOT_database::write_file(fs::FS &fs, const char * path, const char * message
     return DATABASE_ERROR_FAILED_WRITE_FILE;
   }
 
-  Serial.println("Message appended");
+  Serial.println("Message written");
   file.close();
 
   return DATABASE_SUCCESS_WRITE_FILE;

@@ -9,10 +9,10 @@ IOT_buttons::IOT_buttons()
 
 void IOT_buttons::begin()
 {
-  pinMode(BUTTON_1, INPUT_PULLUP);
-  pinMode(BUTTON_2, INPUT_PULLUP);
-  pinMode(BUTTON_3, INPUT_PULLUP);
-  pinMode(BUTTON_4, INPUT_PULLUP);
+  pinMode(BUTTON_1, INPUT);
+  pinMode(BUTTON_2, INPUT);
+  pinMode(BUTTON_3, INPUT);
+  pinMode(BUTTON_4, INPUT);
   Serial.println("Buttons begins");
 }
 
@@ -52,8 +52,8 @@ int IOT_buttons::read(int button, void (*callback_func)() = NULL)
     {
       callback_func();  // don't put delay to callback function!
     }
-    return 1;
+    return ON;
   }
-  return 0;
+  return OFF;
 }
 

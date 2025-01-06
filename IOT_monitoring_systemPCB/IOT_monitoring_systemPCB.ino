@@ -1,3 +1,5 @@
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 #include "SoftwareSerial.h"
 
 byte __queryCO2[8] = {0x01, 0x03, 0x00, 0x05, 0x00, 0x01, 0x94, 0x0B};
@@ -106,7 +108,7 @@ void input_task(void *parameter)
 
   for(;;)
   {
-    // device.handle_buttons_input();
+    device.handle_buttons_input();
     device.handle_get_data_from_display();
     device.handle_command_serial();
     // Serial.println("Pass...");
