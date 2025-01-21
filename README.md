@@ -1,0 +1,3 @@
+- The software for capstone project
+- In progress
+- No copyright
