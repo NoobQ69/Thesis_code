@@ -104,7 +104,9 @@ class Node
     char _cmd_buffer[MAX_BUFFER_LENGTH];
     char _temp_cmd_buffer[MAX_BUFFER_LENGTH];
     char _serial_buffer[MAX_BUFFER_LENGTH];
-    char _pre_LoRa_buffer[250];
+    // char _pre_LoRa_buffer[250];
+    char _evt_buffer[150];
+    char _mt_buffer[40];
     char _LoRa_buffer[MAX_BUFFER_LENGTH];
     char _display_buffer[MAX_BUFFER_LENGTH];
     char _dsp_bucket_buffer[MAX_BUFFER_LENGTH];
@@ -135,40 +137,73 @@ class Node
     task_ptr actuator_data_task;
 
     Node();
+    
     void begin();
+    
     void handle_command_serial();
+    
     void handle_get_data_from_display();
+    
     // void handle_mqtt_transceiving();
+    
     void handle_mqtt_communication();
+    
     void handle_data_from_actuator_node();
+    
     int handle_cmd();
+    
     // void process_cmd_from_serial();
+    
     void handle_set_date_time();
+    
     void handle_get_node_role();
+    
     void handle_change_node_role();
+    
     uint16_t handle_get_sink_node_addr();
+    
     void handle_set_sink_node_addr();
+    
     void display_print_date_time();
+    
     void handle_print_data_bucket(int type);
 
     void handle_get_wifi_params();
+    
     void handle_get_wifi_ssid();
+    
     int connect_to_wifi(const char *ssid, const char *pass);
+    
     void handle_get_mqtt_params();
+    
     void send_mqtt_data_info();
+    
     void mqtt_setup();
+    
     int publish_to_mqtt_server();
+    
     int mqtt_reconnect();
 
     void display_print_nodes(int type);
+    
     void get_chosen_node();
+    
     void handle_device_state_to_node(int state);
+    
     void update_system_state_node(int state);
+    
     void reset_current_node_str();
+    
     void handle_node_response(int code_num);
+    
+    void store_time_setting_data(int type);
+
+    void display_update_event_time();
+    
     // void handle_get_system_state_from_user();
 
     int process_cmd();
+    
     int create_task(TaskFunction_t pv_task_code,
                           const char * name, 
                           const unsigned int stack_size, 
@@ -178,9 +213,13 @@ class Node
                           const int core);
 
     void setup_Lora_star_topo();
+    
     void print_packet(dataPacket data); // obsolete
+    
     // void print_data_packet(AppPacket<dataPacket>* packet);
+    
     void get_routing_node_address();
+    
     void handle_process_received_message();
 };
 

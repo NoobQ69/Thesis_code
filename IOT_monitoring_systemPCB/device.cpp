@@ -10,7 +10,7 @@ int db_send_data_timeout_flag = 0;
 
 // char Dsp_ET_current_label[][10] = {"b4.txt=\"","b5.txt=\"","b6.txt=\"","b7.txt=\""};
 char Dsp_MT_current_label[][10] = {"n6.val=","n7.val=","n8.val=","n9.val=","n10.val=","n11.val="};
-char Event_time_string_temp[20];
+// char Event_time_string_temp[20];
 
 long long int Timer_counter = 0;
 
@@ -71,15 +71,24 @@ static void IRAM_ATTR _on_iot_device_timer_isr()
 
 // int signal_timer;
 static void my_timer_callback(TimerHandle_t xTimer) 
-{ 
+{
+  // int signal_timer = 0;
+  // BaseType_t xHigherPriorityTaskWoken;
+
+  /* We have not woken a task at the start of the ISR. */
+  // xHigherPriorityTaskWoken = pdFALSE;
+  
   if ((uint32_t)pvTimerGetTimerID(xTimer) == 0)
   {
+    // signal_timer = DELAY_TIMEOUT_SIGNAL;
     db_delay_timeout_flag = 1;
-    // xQueueSendFromISR( _store_db_msg_queue, (void *)&signal_timer, &xHigherPriorityTaskWoken );
+    // xQueueSendFromISR(_store_db_msg_queue, (void *)&signal_timer, &xHigherPriorityTaskWoken);
   }
   else if ((uint32_t)pvTimerGetTimerID(xTimer) == 1)
   {
+    // signal_timer = DATABASE_SEND_DATA_TIMEOUT_SIGNAL;
     db_send_data_timeout_flag = 1;
+    // xQueueSendFromISR(_store_db_msg_queue, (void *)&signal_timer, &xHigherPriorityTaskWoken);
   }
 }
 
@@ -91,7 +100,7 @@ IOT_device::IOT_device()
   this->_my_timer                           = NULL;
   // this->_sensor_buffer                      = "";
   this->_timeout_chamber_door               = ACTUATORS_TIMEOUT_CHAMBER_DOOR;
-  memset(this->_buffer, 0, CMD_MAX_BUFFER);
+  // memset(this->_buffer, 0, CMD_MAX_BUFFER);
   _store_db_msg_queue = xQueueCreate(3, sizeof(int));
   this->_LoRa_msg_queue = xQueueCreate(2, sizeof(int));
   this->_cmd_msg_queue = xQueueCreate(10, sizeof(int));
@@ -250,7 +259,7 @@ void IOT_device::init_measure_event_time()
   this->_measure_events.spike_time.time                 = 5; // 15 seconds 
   this->_measure_events.spike_time.number_of_intervals  = 5; // 5 times, 15 * 5 = 75 seconds < 15 minutes -> valid value setup
   
-  this->_measure_events.fan_still_time.time                 = 75; // 75 seconds 
+  this->_measure_events.fan_still_time.time             = 75; // 75 seconds
 }
 
 void IOT_device::init_measure_event_time(Measure_event_time_t *measure_event)
@@ -625,9 +634,9 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
     // for updating event time in display
     if (this->_device_flags.current_data_signal == DISPLAY_DATA_SIGNAL)
     {
-      this->display_update_measure_time(&this->_measure_events.major_time, MAJOR_TIME);
-      this->display_update_measure_time(&this->_measure_events.minor_time, MINOR_TIME);
-      this->display_update_measure_time(&this->_measure_events.spike_time, SPIKE_TIME);
+      this->display_update_measure_time(&this->_measure_events, MAJOR_TIME);
+      this->display_update_measure_time(&this->_measure_events, MINOR_TIME);
+      this->display_update_measure_time(&this->_measure_events, SPIKE_TIME);
       this->handle_save_setting();
       this->_display.send_data_to_display("page ev_m_page");
       if (result == VALID)
@@ -704,8 +713,8 @@ void IOT_device::handle_print_data_bucket(int type)
   }
   Serial.printf("------- Current linre %d, total line %d\n",_dsp_current_line_bucket,_sensor_file_num_of_lines);
 
-  memset(this->_buffer, 0, CMD_MAX_BUFFER);
-  memset(this->_dsp_bucket_buffer, 0, 100);
+  // memset(this->_buffer, 0, CMD_MAX_BUFFER);
+  // memset(this->_dsp_bucket_buffer, 0, 100);
 
   this->_database.read_line(SD, SENSOR_RECORD_FILE_PATH, this->_dsp_bucket_buffer, _dsp_current_line_bucket);
   sprintf(this->_buffer,"t1.txt=\"%s\\r\"", this->_dsp_bucket_buffer);
@@ -713,8 +722,8 @@ void IOT_device::handle_print_data_bucket(int type)
   
   for (int i = 1; i < 5; i++)
   {
-    memset(this->_buffer, 0, CMD_MAX_BUFFER);
-    memset(this->_dsp_bucket_buffer, 0, 100);
+    // memset(this->_buffer, 0, CMD_MAX_BUFFER);
+    // memset(this->_dsp_bucket_buffer, 0, 100);
     // strcat(this->_cmd_buffer,"t1.txt+=\"");
     if (_dsp_current_line_bucket+i <= this->_sensor_file_num_of_lines)
     {
@@ -731,7 +740,7 @@ void IOT_device::handle_print_data_bucket(int type)
 int IOT_device::save_data_to_database()
 {
   int i = 0;
-  memset(this->_sensor_buffer, 0, SENSOR_MAX_BUFFER);  
+  // memset(this->_sensor_buffer, 0, SENSOR_MAX_BUFFER);  
   sprintf(this->_sensor_buffer,"%d,%d,%.2f,%.2f,%.2f,%d,%s",
           this->_sensors_data_bucket.co2_data,
           this->_sensors_data_bucket.ch4_data,
@@ -831,7 +840,7 @@ void IOT_device::handle_save_to_database()
       block_sending_var = ENABLE;
       // resent the current data again
     }
-    else if (item == DATABASE_SEND_DATA_SUCCESSFULLY_SIGNAL)
+    else if (item == DATABASE_SUCCESS_SEND_DATA_SIGNAL)
     {
       // increase remain sensor data
       Serial.println("DB: sending data sensor successfully");
@@ -857,13 +866,13 @@ void IOT_device::handle_save_to_database()
   if (db_delay_timeout_flag == 1)
   {
     signal_timer = DATABASE_SEND_DATA_TIMEOUT_SIGNAL;
-    xQueueSend(_store_db_msg_queue, (void *)&signal_timer, 0);
+    xQueueSend(this->_store_db_msg_queue, (void *)&signal_timer, 0);
     db_delay_timeout_flag = 0;
   }
   else if(db_send_data_timeout_flag == 1)
   {
     signal_timer = DELAY_TIMEOUT_SIGNAL;
-    xQueueSend(_store_db_msg_queue, (void *)&signal_timer, 0);
+    xQueueSend(this->_store_db_msg_queue, (void *)&signal_timer, 0);
     db_send_data_timeout_flag = 0;
   }
 }
@@ -956,6 +965,35 @@ void IOT_device::handle_save_setting()
 
     Serial.println(this->_setting_buffer);
   this->_database.append_file(SD, SETTING_FILE_PATH, this->_setting_buffer,false);
+}
+
+void IOT_device::convert_event_time_setting_to_str()
+{
+  Serial.print("Event time string:");
+  
+  for (int i = 0; i < len; i++)
+  {
+    sprintf(this->_setting_buffer,"MFSN,ET_RESP");
+    sprintf(_temp_buffer, ",%d:%d",this->_measure_events.event_time.time[i].hours, this->_measure_events.event_time.time[i].minutes);
+    strcat(_buffer, _temp_buffer);
+  }
+
+  Serial.println(_buffer);
+}
+
+void IOT_device::convert_measure_time_setting_to_str()
+{
+  Serial.print("Measure time string:");
+  // memset(this->_setting_buffer, 0, SETTING_MAX_BUFFER);
+  sprintf(_buffer,"MT_RESP",
+  sprintf(_temp_buffer,",%d,%d", this->_measure_events.major_time.number_of_intervals, this->_measure_events.major_time.time);
+  strcat(_buffer, _temp_buffer);
+  sprintf(_temp_buffer,",%d,%d", this->_measure_events.minor_time.number_of_intervals, this->_measure_events.minor_time.time);
+  strcat(_buffer, _temp_buffer);
+  sprintf(_temp_buffer,",%d,%d",this->_measure_events.spike_time.number_of_intervals, this->_measure_events.spike_time.time);
+  strcat(_buffer, _temp_buffer);
+  
+  Serial.println(this->_buffer);
 }
 
 int IOT_device::on()
@@ -1287,6 +1325,7 @@ uint8_t IOT_device::handle_load_setting_from_db()
 
   this->_database.get_number_of_line(SD, SETTING_FILE_PATH, &number_of_line);
   Serial.printf("Number of line event setting: %d\n",number_of_line);
+
   for (int i = 0; i < number_of_line; i++)
   {
     // bool read_line(fs::FS &fs, const char * path, String &lineStorage, int lineNumber);
@@ -1376,53 +1415,100 @@ void IOT_device::display_update_event_time()
   split_string_char(this->_buffer, ',', 1, temp);
   int n = convert_string_to_int(temp,2);
   
-  for (int i = n-1; i < n+3; i++)
+  if (_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
   {
-    memset(Event_time_string_temp, 0, 20);
-    sprintf(Event_time_string_temp,"b%d.txt=\"%d:%d\"",k,
-                      this->_measure_events.event_time.time[i].hours,
-                      this->_measure_events.event_time.time[i].minutes);
-    this->_display.send_data_to_display(Event_time_string_temp);
-    j += 1;
-    k += 1;
+    memset(_buffer, 0, CMD_MAX_BUFFER);
+    strcpy(_buffer, "MFSN,ET_RESP");
+    
+    for (int i = n-1; i < n+3; i++)
+    {
+      // memset(_temp_buffer, 0, 40);
+      sprintf(_temp_buffer,",b%d.txt=\"%d:%d\",", k,
+                        this->_measure_events.event_time.time[i].hours,
+                        this->_measure_events.event_time.time[i].minutes);
+      strcat(_buffer, _temp_buffer);
+      // this->_display.send_data_to_display(Event_time_string_temp);
+      j += 1;
+      k += 1;
+    }
+    Serial2.println(_buffer);
+  }
+  else
+  {
+    for (int i = n-1; i < n+3; i++)
+    {
+      memset(_temp_buffer, 0, 40);
+      sprintf(_temp_buffer,"b%d.txt=\"%d:%d\"",k,
+                        this->_measure_events.event_time.time[i].hours,
+                        this->_measure_events.event_time.time[i].minutes);
+      this->_display.send_data_to_display(_temp_buffer);
+      j += 1;
+      k += 1;
+    }
   }
   // Event_time_string_temp[6];
 }
 
-void IOT_device::display_update_measure_time(Measure_time_t *m_time, int time_type)
+void IOT_device::display_update_measure_time(Measure_event_time_t *m_time, int time_type)
 {
-  int j;
+  if (_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+  {
+    memset(_buffer, 0, CMD_MAX_BUFFER);
+    strcpy(_buffer,"MFSN,MT_RESP");
+
+    // memset(_temp_buffer, 0, 20);
+    sprintf(_temp_buffer,",%d-%d", m_time->major_time.time, m_time->major_time.number_of_intervals);
+    strcat(_buffer, _temp_buffer);
+    
+    // memset(_temp_buffer, 0, 20);
+    sprintf(_temp_buffer,",%d-%d", m_time->minor_time.time, m_time->minor_time.number_of_intervals);
+    strcat(_buffer, _temp_buffer);
+    
+    // memset(_temp_buffer, 0, 20);
+    sprintf(_temp_buffer,",%d-%d", m_time->spike_time.time, m_time->spike_time.number_of_intervals);
+    strcat(_buffer, _temp_buffer);
+      // this->_display.send_data_to_display(_temp_buffer);
+    
+    Serial2.println(_buffer);
+  }
+  else
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      _display_send_measure_time(&m_time->major_time, 0);
+      _display_send_measure_time(&m_time->minor_time, 2);
+      _display_send_measure_time(&m_time->spike_time, 4);
+    }
+  }
+}
+
+void IOT_device::_display_send_measure_time(Measure_time_t *m_time, int index)
+{
   char temp[4];
-  if (time_type == MAJOR_TIME) j = 0;
-  else if (time_type == MINOR_TIME) j = 2;
-  else if (time_type == SPIKE_TIME) j = 4;
-
-  memset(Event_time_string_temp, 0, 20);
-  strcat(Event_time_string_temp, Dsp_MT_current_label[j]);
-
-  memset(temp, 0, 4);
-  convert_int_to_str(m_time->time,temp);
-  strcat(Event_time_string_temp, temp);
-  this->_display.send_data_to_display(Event_time_string_temp);
-  j += 1;
   
-  memset(Event_time_string_temp, 0, 20);
-  strcat(Event_time_string_temp, Dsp_MT_current_label[j]);
-
-  memset(temp, 0, 3);
-  convert_int_to_str(m_time->number_of_intervals,temp);
-  strcat(Event_time_string_temp, temp);
-  this->_display.send_data_to_display(Event_time_string_temp);
+  memset(_temp_buffer, 0, 20); memset(temp, 0, 4);
+  strcat(_temp_buffer, Dsp_MT_current_label[index]);
+  convert_int_to_str(m_time->time, temp);
+  strcat(_temp_buffer, temp);
+  this->_display.send_data_to_display(_temp_buffer);
+  // j += 1;
+  
+  memset(_temp_buffer, 0, 20); memset(temp, 0, 4);
+  strcat(_temp_buffer, Dsp_MT_current_label[index+1]);
+  convert_int_to_str(m_time->number_of_intervals, temp);
+  strcat(_temp_buffer, temp);
+  this->_display.send_data_to_display(_temp_buffer);
 }
 
 void IOT_device::display_print_date_time()
 {
   char temp[3];
+  // memset(Event_time_string_temp, 0, 20);
+  sprintf(_temp_buffer, "t14.txt=\"%d:%d\"",this->_rtc.get_hours(), this->_rtc.get_minutes());
+  this->_display.send_data_to_display(_temp_buffer);
 
-  memset(Event_time_string_temp, 0, 20);
-  sprintf(Event_time_string_temp, "t14.txt=\"%d:%d\"",this->_rtc.get_hours(), this->_rtc.get_minutes());
-
-  this->_display.send_data_to_display(Event_time_string_temp);
+  sprintf(_temp_buffer, "date_lb.txt=\"%d/%d/%d\"",this->_rtc.get_day(), this->_rtc.get_month(), this->_rtc.get_year());
+  this->_display.send_data_to_display(_temp_buffer);  
 }
 
 int IOT_device::handle_cmd()
@@ -1487,14 +1573,12 @@ int IOT_device::process_cmd()
     
     this->display_update_device_state();
   }
-  else if (str_startswith(this->_buffer, "DEVICE_SAMPLE")) 
+  else if (str_startswith(this->_buffer, "FORCE_EVENT_ON"))
   { 
     if (this->_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
       Serial2.println("MFSN,NRESP,2");
-  
-    this->set_device_state(2); 
+    this->_device_flags.forcing_to_event_flag = ENABLE;
   }
-  else if (str_startswith(this->_buffer, "FORCE_EVENT_ON"))  { this->_device_flags.forcing_to_event_flag = ENABLE; }
   else if (str_startswith(this->_buffer, "F12_ON"))          { this->_actuators.set_actuators_pin(FAN_1_PIN, HIGH); }
   else if (str_startswith(this->_buffer, "F12_OFF"))         { this->_actuators.set_actuators_pin(FAN_1_PIN, LOW); }
   else if (str_startswith(this->_buffer, "CYLINDER_ON")) { 
@@ -1515,12 +1599,12 @@ int IOT_device::process_cmd()
   else if (str_startswith(this->_buffer, "MFSN,SDS")) // SDS,(data sensor)
   {
       // Serial.println("Data send to sink node is too long! Ignore");
-    int msg = DATABASE_SEND_DATA_SUCCESSFULLY_SIGNAL;
-    if (xQueueSend(this->_store_db_msg_queue, (void *)&msg, 100) != pdTRUE)
-    {
-      Serial.println("From cmd : db event queue is full");
-    }
-    else
+    // int msg = DATABASE_SUCCESS_SEND_DATA_SIGNAL;
+    // if (xQueueSend(_store_db_msg_queue, (void *)&msg, 100) != pdTRUE)
+    // {
+    //   Serial.println("From cmd : db event queue is full");
+    // }
+    // else
     {
       this->_buffer[strlen(this->_buffer)-1] = 0;
       Serial.println("Data sending to user node via serial port ...");
@@ -1531,8 +1615,8 @@ int IOT_device::process_cmd()
   else if (str_startswith(this->_buffer, "MSG00")) // SEND_DTSS,(data)
   {
     Serial.println(this->_buffer);
-    int msg = DATABASE_SEND_DATA_SUCCESSFULLY_SIGNAL;
-    if (xQueueSend(this->_store_db_msg_queue, (void *)&msg, 100) != pdTRUE)
+    int msg = DATABASE_SUCCESS_SEND_DATA_SIGNAL;
+    if (xQueueSend(_store_db_msg_queue, (void *)&msg, 100) != pdTRUE)
     {
       Serial.println("From cmd : db event queue is full");
     }
@@ -1616,9 +1700,9 @@ int IOT_device::process_cmd()
   }
   else if (str_startswith(this->_buffer, "DSP_MT_UPDATE")) // for Display
   {
-    this->display_update_measure_time(&this->_measure_events.major_time, MAJOR_TIME);
-    this->display_update_measure_time(&this->_measure_events.minor_time, MINOR_TIME);
-    this->display_update_measure_time(&this->_measure_events.spike_time, SPIKE_TIME);
+    this->display_update_measure_time(&this->_measure_events, MAJOR_TIME); // the second parameter is deprecated
+    // this->display_update_measure_time(&this->_measure_events.minor_time, MINOR_TIME);
+    // this->display_update_measure_time(&this->_measure_events.spike_time, SPIKE_TIME);
   }
   else if (str_startswith(this->_buffer, "DSP_BP_E")) // for Display
   {

@@ -32,10 +32,10 @@ void setup() {
   Serial.begin(9600);
   Node1._user_receive_packet_func = handle_receive_user_packet;
   // Node1._role = SINK_NODE;
-  // Node1.begin();
   Node1._role = USER_NODE;
-
   Node1.begin();
+
+  // Node1.begin();
   while (!Serial);
 
   Serial.println("LoRa Sender");

@@ -28,7 +28,7 @@ IOT_rtc::IOT_rtc(int hours, int minutes, int seconds, int days, int months, int 
 
 void IOT_rtc::begin()
 {
-  this->_rtc = new ESP32Time(25200);  // offset in seconds GMT+7
+  this->_rtc = new ESP32Time(3600*7);  // offset in seconds GMT+7
   this->_rtc->setTime(this->_date_time.seconds, 
               this->_date_time.minutes,
               this->_date_time.hours,
@@ -41,10 +41,10 @@ void IOT_rtc::begin()
 
 void IOT_rtc::begin(int hours, int minutes, int seconds, int days, int months, int years)
 {
-  this->_rtc = new ESP32Time(0);  // offset in seconds GMT+1
+  this->_rtc = new ESP32Time(3600*7);  // offset in seconds GMT+1
   this->_rtc->setTime(seconds,
               minutes,
-              hours-1,
+              hours,
               days,
               months,
               years);  // 17th Jan 2021 15:24:30
@@ -56,7 +56,7 @@ void IOT_rtc::set_time(int hours, int minutes, int seconds, int days, int months
 {
   this->_rtc->setTime(seconds,
               minutes, 
-              hours-1, 
+              hours, 
               days, 
               months, 
               years);
@@ -75,6 +75,21 @@ int IOT_rtc::get_minutes()
 int IOT_rtc::get_hours()
 {
   return this->_rtc->getHour(true);
+}
+
+int IOT_rtc::get_day()
+{
+  return this->_rtc->getDay();
+}
+
+int IOT_rtc::get_month()
+{
+  return this->_rtc->getMonth();
+}
+
+int IOT_rtc::get_year()
+{
+  return this->_rtc->getYear();
 }
 
 void IOT_rtc::print_get_data_time(String format)

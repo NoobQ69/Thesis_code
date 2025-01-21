@@ -137,6 +137,7 @@ class IOT_device
       */
     
     char                 _buffer[CMD_MAX_BUFFER]; // handle command serial
+    char                 _temp_buffer[CMD_MAX_BUFFER]; // handle command serial
     char                 _setting_buffer[SETTING_MAX_BUFFER]; // store setting data before storing to SD database
     
     char                 _serial_buffer[SERIAL_INPUT_MAX_BUFFER]; // store setting data before storing to SD database
@@ -169,7 +170,7 @@ class IOT_device
      *
      * @return none
      */
-    void display_update_measure_time(Measure_time_t *m_time, int time_type);
+    void display_update_measure_time(Measure_event_time_t *m_time, int time_type);
     
    /**
      * @brief update time to display periodically
@@ -177,6 +178,13 @@ class IOT_device
      * @return none
      */
     void display_print_date_time();
+
+   /**
+     * @brief send measure time to display
+     *
+     * @return none
+     */
+    void _display_send_measure_time(Measure_time_t *m_time, int index);
 
   public:
     /**
@@ -248,6 +256,15 @@ class IOT_device
      * @return None
      */
     void        init_measure_event_time(Measure_event_time_t *measure_event);
+    /**
+     * @brief Init event time setup, for more information about this, check sampling procedure in :
+     *
+     *
+     * @param Measure time struct variable
+     *
+     * @return None
+     */
+    void convert_event_time_setting_to_str();
 
    /**
      * @brief run the code that handle measurement of the device

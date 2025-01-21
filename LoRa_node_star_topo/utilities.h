@@ -177,6 +177,8 @@ ACTUATOR MACROS*/
 #define DSP_ENTER 0
 #define DSP_UP 1
 #define DSP_DOWN 2
+#define EVENT_TIME_DATA 0
+#define MEASURE_TIME_DATA 1
 
 /*
  *MQTT MACROS

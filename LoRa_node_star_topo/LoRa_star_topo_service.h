@@ -165,7 +165,8 @@ uint8_t LoraStar::begin()
 
   if (_role == NODE_USER)
   {
-    Serial.printf("User send packet to %x\n", get_local_address());
+    Serial.println("Node role: User node");
+    Serial.printf("User node send packet to %x\n", get_local_address());
 
     LoRa_data_packet_t routing_packet;
     routing_packet.source_addr = get_local_address();
@@ -175,6 +176,10 @@ uint8_t LoraStar::begin()
     routing_packet.type = 2;
     routing_packet.payload = "0";
     create_packet_data_and_send(&routing_packet);
+  }
+  else
+  {
+    Serial.println("Node role: Sink node");
   }
   return VALID;
 }

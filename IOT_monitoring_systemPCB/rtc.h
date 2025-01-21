@@ -29,6 +29,9 @@ class IOT_rtc
     int get_seconds();
     int get_minutes();
     int get_hours();
+    int get_day();
+    int get_month();
+    int get_year();
     void print_get_data_time(String format = "%H:%M:%S-%d/%b/%Y");
     String get_data_time(String format = "%H:%M:%S--%d/%b/%Y");
 };

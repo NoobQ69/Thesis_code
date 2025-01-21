@@ -66,13 +66,6 @@ void setup() {
   _mySerial.begin(9600);
   Serial.begin(9600);
   Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
-  // pinMode(16, INPUT_PULLUP);
-  // db1.begin();
-  // IOT_sensors ss1;
-  // ss1.begin();
-  // ss1.read();
-  // ss1.print_data_serial();
-  // db1.write_file(SD, "/log.txt","log", true);
   device.callbackfnc = callback;
   device.begin();
   device.create_task(input_task, "Input task", 8192, NULL,   4, &input_task_handler, App_cpu);
@@ -127,17 +120,5 @@ void store_data_to_database_task(void *parameter)
 
 void loop()
 {
-  // if (device.get_device_state() == DEVICE_STATE_ON)
-  // {
-  //   if (device.get_device_on_state() == DEVICE_ON_MINOR_TIME)
-  //   {
-  //     callback();
-  //   }
-  // }
-  // Serial.println(co2_ss1.getCO2());
-  // Serial.println(ch4_ss1.getCH4());
-  // ss1.read();
-  // ss1.print_data_serial();
-  // delay(2000);
   device.run();
 }
