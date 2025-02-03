@@ -127,6 +127,18 @@ int Database::read_file(fs::FS &fs, const char *path, String &text_str, int &num
   return DATABASE_SUCCESS_READ_FILE;
 }
 
+int Database::create_dir(fs::FS &fs, const char * path)
+{
+  Serial.printf("Creating Dir: %s\n", path);
+  if(fs.mkdir(path)){
+    Serial.println("Dir created");
+    return 0;
+  } else {
+    Serial.println("mkdir failed");
+  }
+  return -1;
+}
+
 int Database::read_file(fs::FS &fs, const char *path, char *text_str, int *line_total) {
   Serial.printf("Reading file: %s\n", path);
   File file = fs.open(path);

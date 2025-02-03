@@ -114,6 +114,7 @@ class LoraStar
     void _release_in_use();
 
   public:
+    uint32_t send_errno;
     Node_t _node_array[MAX_ADDRESS_NODE]; // store user nodes
     uint8_t _node_slot[MAX_ADDRESS_NODE]; // indicate whether the element in _node_array is available for storing a node
     Task_func_ptr_t _user_receive_packet_func;
@@ -211,6 +212,7 @@ void send_task(void *params)
 {
   LoraStar *lora_obj = (LoraStar*)params;
   BaseType_t TWres = pdPASS;
+
   while (1)
   {
     Serial.println("Waiting data to send");
@@ -220,7 +222,15 @@ void send_task(void *params)
     {
       while (!Send_queue.is_empty())
       {
-        lora_obj->send_data();
+        if (!lora_obj->send_data())
+        {
+          lora_obj->send_errno += 1;
+          Serial.printf("Send packet get error: error number = %d\n", lora_obj->send_errno);
+        }
+        else
+        {
+          vTaskDelay(5);
+        }
       }
       // lora_obj->handle_receive_data_packet();
     }
@@ -305,14 +315,18 @@ void LoraStar::process_timeout()
 
 int LoraStar::send_data()
 {
-  Serial.print("Sending packet: ");
+  Serial.println("Send task: Sending packet...");
   LoRa.beginPacket();
   LoRa.print(_send_packet_buffer);
-  LoRa.endPacket();
-  Serial.print("Packet sent.");
+  if (LoRa.endPacket() == 0)
+  {
+    Send_queue.delete_head();
+    return 0;
+  }
+  Serial.println("Send task: Packet sent.");
 
   Send_queue.delete_head();
-  return 0;
+  return 1;
 }
 
 void LoraStar::local_address_init() {

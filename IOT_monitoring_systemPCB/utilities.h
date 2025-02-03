@@ -25,7 +25,7 @@
 #define INVALID                                   DISABLE
 
 /* TASK BUFFER MACROS */
-#define CMD_MAX_BUFFER                            100
+#define CMD_MAX_BUFFER                            200
 #define SERIAL_INPUT_MAX_BUFFER                   100
 #define SETTING_MAX_BUFFER                        100
 #define SENSOR_MAX_BUFFER                         100
@@ -42,6 +42,16 @@
 #define EVENT_TIME_RANGE                          24
 #define ME_TIME_DEFAULT_HOURS                     8
 #define ME_TIME_DEFAULT_MINUTES                   0
+
+#define RESP_DEVICE_ON      0
+#define RESP_DEVICE_OFF     1
+#define RESP_DEVICE_SAMPLE  2
+#define RESP_MT_GS          3
+#define RESP_ET_GS          4
+#define RESP_DS_GS          5
+#define RESP_MT_GF          6
+#define RESP_ET_GF          7
+#define RESP_DS_GF          8
 
 /*
   MEASURE EVENT*/
@@ -196,7 +206,7 @@ int str_startswith(const char * string_compare,  const char * string_to_compare)
 void split_string_char(const char *data, char separator, int index, char string_to_store[]);
 int convert_string_to_int(const char *string_number, int len);
 void convert_int_to_str(int N, char *str);
-int count_character(const char *string,int len, char char_indicator);
+int count_character(const char *string, char char_indicator);
 int get_index_from_string(const char *str, char c, int position); // get index of a character from a string 
 
 #endif

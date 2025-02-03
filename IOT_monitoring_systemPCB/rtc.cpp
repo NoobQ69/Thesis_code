@@ -28,7 +28,7 @@ IOT_rtc::IOT_rtc(int hours, int minutes, int seconds, int days, int months, int 
 
 void IOT_rtc::begin()
 {
-  this->_rtc = new ESP32Time(3600*7);  // offset in seconds GMT+7
+  this->_rtc = new ESP32Time(0);  // offset in seconds GMT+7
   this->_rtc->setTime(this->_date_time.seconds, 
               this->_date_time.minutes,
               this->_date_time.hours,
@@ -41,7 +41,7 @@ void IOT_rtc::begin()
 
 void IOT_rtc::begin(int hours, int minutes, int seconds, int days, int months, int years)
 {
-  this->_rtc = new ESP32Time(3600*7);  // offset in seconds GMT+1
+  this->_rtc = new ESP32Time(0);  // offset in seconds GMT+1
   this->_rtc->setTime(seconds,
               minutes,
               hours,

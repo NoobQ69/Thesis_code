@@ -77,6 +77,8 @@ typedef struct
   uint8_t sink_addr_available_flag;
   uint8_t wifi_get_params_flag;
   uint8_t mqtt_get_params_flag;
+  uint8_t wifi_state_flag;
+  uint8_t mqtt_state_flag;
 
 } Node_flags_t;
 
@@ -84,14 +86,16 @@ class Node
 {
   private:
     int                   _dsp_current_line_bucket;
+    int                   _evt_total;
     int                   _dsp_current_page_node_addr;
     int                   _sensor_file_num_of_lines;
     uint16_t              _dsp_node_addr[LORA_MAX_NODE_ADDRESS];
     uint16_t              _dsp_current_node_addr;
     uint16_t              _sink_node_addr;
     Node_flags_t          _device_flags;
-    String _current_node_str;
-    Data_packet_info_t _current_data_packet_info;
+    String                _current_node_str;
+    Data_packet_info_t    _current_data_packet_info;
+
     char _wifi_ssid[WIFI_NAME_LEN];
     char _wifi_password[WIFI_PASS_LEN];
 
@@ -115,17 +119,17 @@ class Node
     char _mqtt_publish_buffer[MAX_BUFFER_LENGTH];
     char _data_sensor_buffer[MAX_BUFFER_LENGTH];
     
-    Database _database;
-    Rtc _rtc;
-    Display _display;
+    Database  _database;
+    Rtc       _rtc;
+    Display   _display;
 
     QueueHandle_t        _cmd_msg_queue;
     QueueHandle_t        _serial_msg_queue;
     QueueHandle_t        _LoRa_msg_queue;
     QueueHandle_t        _mqtt_msg_queue;
 
-
     dataPacket* helloPacket; // obsolete
+
   public:
     int _device_role;
     task_ptr user_recieve_packet_task;
@@ -145,6 +149,11 @@ class Node
     void handle_get_data_from_display();
     
     // void handle_mqtt_transceiving();
+    void store_current_node_data_sensor();
+
+    void print_current_node_data_sensor();
+    
+    void print_node_lasted_data_sensor();
     
     void handle_mqtt_communication();
     
@@ -198,7 +207,15 @@ class Node
     
     void store_time_setting_data(int type);
 
-    void display_update_event_time();
+    void display_update_event_time(int pos); // pos: position to specify when sink node gets the response from others
+
+    void display_update_measure_time();
+
+    // void _display_send_measure_time();
+
+    void handle_get_measure_event_time();
+
+    void handle_print_data_sensor_node(uint16_t node_address);
     
     // void handle_get_system_state_from_user();
 

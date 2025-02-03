@@ -21,7 +21,7 @@ TaskHandle_t serial_task_handler       = NULL;
 TaskHandle_t buttons_task_handler      = NULL;
 TaskHandle_t display_task_handler      = NULL;
 TaskHandle_t actuator_task_handler     = NULL;
-TaskHandle_t mqtt_task_handler         = NULL;
+// TaskHandle_t mqtt_task_handler         = NULL;
 
 // char Dsp_node_addr_label[][10] = {"b1.txt=\"","b2.txt=\"","b3.txt=\"","b4.txt=\"","b5.txt=\"","b6.txt=\""};
 // char Mqtt_json_str_format[] = {"{ \"sensorRecords\": [{\"dataStreamId\": \"%d\",\"result\": \"%s %s\"}] }"};
@@ -30,6 +30,8 @@ TaskHandle_t mqtt_task_handler         = NULL;
 
 // SPIClass newSPI(VSPI);
 // LoraMesher& Radio = LoraMesher::getInstance();
+
+char Dsp_MT_current_label[][10] = {"n6.val=","n7.val=","n8.val=","n9.val=","n10.val=","n11.val="};
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -45,6 +47,8 @@ Node::Node()
   this->_device_flags.sink_addr_available_flag    = DISABLE;
   this->_device_flags.mqtt_get_params_flag         = FAILED;
   this->_device_flags.wifi_get_params_flag         = FAILED;
+  _device_flags.wifi_state_flag                   = FAILED;
+  _device_flags.mqtt_state_flag                   = FAILED;
 
   this->_cmd_msg_queue                            = xQueueCreate(10, sizeof(int));
   this->_serial_msg_queue                         = xQueueCreate(2, sizeof(int));
@@ -180,12 +184,6 @@ void Node::begin()
   this->create_task(cmd_task, "cmd task", 8192, NULL,   4, &cmd_task_handler, 0);
   this->create_task(serial_task, "serial task", 8192, NULL,   4, &serial_task_handler, 0);
 
-
-  // Serial.println(_mqtt_broker);
-  // Serial.println(_mqtt_port);
-  // Serial.println(_mqtt_username);
-  // Serial.println(_mqtt_password);
-  // Serial.println(_mqtt_topic);
   if (this->_device_role == NODE_SINK)
   {
     this->mqtt_setup();
@@ -241,29 +239,6 @@ void Node::handle_get_data_from_display()
     // this->handle_cmd();
   }
 }
-
-// void Node::process_cmd_from_serial()
-// {
-//   int i = 0;
-//   char c;
-
-//   if (Serial.available())
-//   {
-//     while (Serial.available())
-//     {
-//       c = Serial.read();
-//       this->_serial_buffer[i] = c;
-//       i++;
-//     }
-
-//     // send msg to cmd task to notify the task receiving data
-//     int msg = LORA_NODE_DATA_SIGNAL;
-//     if (xQueueSend(this->_cmd_msg_queue, (void *)&msg, 100) != pdTRUE)
-//     {
-//       Serial.println("From serial: CMD event queue is full");
-//     }
-//   }
-// }
 
 /**
  * @brief ...
@@ -364,7 +339,7 @@ void Node::handle_set_date_time()
  * @brief ...
  *
  */
-void Node::display_print_date_time()
+void Node::display_print_date_time() // this function becomes hybrid (add updating wifi state)
 {
   // char temp[3];
   // memset(_temp_cmd_buffer, 0, strlen(_temp_cmd_buffer));
@@ -373,6 +348,15 @@ void Node::display_print_date_time()
   // memset(_temp_cmd_buffer, 0, strlen(_temp_cmd_buffer));
   sprintf(_temp_cmd_buffer, "date_lb.txt=\"%d/%d/%d\"",this->_rtc.get_day(), this->_rtc.get_month(), this->_rtc.get_year());
   this->_display.send_data_to_display(_temp_cmd_buffer);
+
+  if (_device_flags.wifi_state_flag == SUCCESS)
+  {
+    this->_display.send_data_to_display("p1.pic=16");
+  }
+  else
+  {
+    this->_display.send_data_to_display("p1.pic=17");
+  }
 }
 /**
  * @brief ...
@@ -477,12 +461,13 @@ int Node::connect_to_wifi(const char *ssid, const char *pass)
   Serial.println("Connecting to WiFi..");
 
   WiFi.begin(ssid, pass);
-  
+  _device_flags.wifi_state_flag = FAILED;
   while (WiFi.status() != WL_CONNECTED) 
   {
     vTaskDelay(500);
     Serial.print(".");
   }
+  _device_flags.wifi_state_flag = SUCCESS;
   Serial.println("Connected to WiFi");
   return 0;
 }
@@ -560,6 +545,18 @@ void Node::send_mqtt_data_info() // note: this function is desired to modify for
   // memset(this->_temp_cmd_buffer,0,MAX_BUFFER_LENGTH);
   sprintf(this->_temp_cmd_buffer,"t10.txt=\"%s\"", this->_mqtt_topic);
   this->_display.send_data_to_display(this->_temp_cmd_buffer);
+  
+  if (_device_flags.mqtt_state_flag == SUCCESS)
+  {
+    this->_display.send_data_to_display("p0.pic=19");
+    this->_display.send_data_to_display("t12.txt=\"connected\"");
+  }
+  else
+  {
+    this->_display.send_data_to_display("p0.pic=18");
+    this->_display.send_data_to_display("t12.txt=\"disconnect\"");
+  }
+
 }
 
 /**
@@ -605,17 +602,20 @@ int Node::publish_to_mqtt_server()
   Serial.println("Failed to send data!");
   return FAILED;
 }
+
 /**
  * @brief ...
  *
  */
 int Node::mqtt_reconnect()
  {
+  _device_flags.mqtt_state_flag = FAILED;
   while(!client.connected())
   {
     Serial.print("Attempting MQTT connection...");
     if (client.connect("esp8266-client" , this->_mqtt_username, this->_mqtt_password)) 
     {
+      _device_flags.mqtt_state_flag = SUCCESS;
       Serial.println("Connected");
     } 
     else {
@@ -685,6 +685,10 @@ void Node::handle_mqtt_communication() // note: this function needs to optimise
   {
     this->mqtt_reconnect();
   }
+  if (WiFi.status() != WL_CONNECTED) 
+  {
+    connect_to_wifi(this->_wifi_ssid, this->_wifi_password); 
+  }
   client.loop();
 }
 /**
@@ -725,15 +729,26 @@ void Node::handle_data_from_actuator_node()
       // memset(helloPacket->data_str, 0, 50);
       // sprintf(helloPacket->data_str,"SDTS,%s", this->_actuator_buffer);
       
-      if (this->_device_flags.sink_addr_available_flag == ENABLE)
+      if (str_startswith(this->_actuator_buffer, "MFSN"))
       {
-        Node1.create_packet_data_and_send(String(_sink_node_addr, HEX).c_str(), this->_actuator_buffer);
-        // Radio.createPacketAndSend(this->_sink_node_addr, helloPacket, 1);
-        vTaskDelay(250);
+        if (this->_device_flags.sink_addr_available_flag == ENABLE)
+        {
+          Node1.create_packet_data_and_send(String(_sink_node_addr, HEX).c_str(), this->_actuator_buffer);
+          // Radio.createPacketAndSend(this->_sink_node_addr, helloPacket, 1);
+          vTaskDelay(250);
+        }
+        else
+        {
+          Serial.println("Error: sink node was not found!");
+        }
       }
       else
       {
-        Serial.println("Error: sink node was not found!");
+        int msg = ACTUATOR_DATA_SIGNAL;
+        if (xQueueSend(this->_cmd_msg_queue, (void *)&msg, 100) != pdTRUE)
+        {
+          Serial.println("From actuator node: CMD event queue is full");
+        }
       }
     }
   }
@@ -836,11 +851,100 @@ void Node::get_chosen_node()
   split_string_char(this->_cmd_buffer, ',', 1, node);
   _current_node_str = String(node);
   // node_num = convert_string_to_int(node, strlen(node));
-  
   if (!_current_node_str.startsWith("null"))
   {
     this->_display.send_data_to_display("page param_st_page");
-    // this->_display.send_data_to_display("node_addr");
+    print_current_node_data_sensor();
+  }
+
+  // add code to print lastest data collected.
+  void print_node_lasted_data_sensor();
+}
+
+void Node::store_current_node_data_sensor()
+{
+  // convert_int_to_str(_current_data_packet_info.source, _cmd_buffer);
+  uint8_t temp;
+  uint8_t attempt_num = 5;
+  char node_file_dir[10];
+  memset(node_file_dir, 0, 10);
+  // convert_int_to_str(_current_data_packet_info.source, _temp_cmd_buffer);
+  sprintf(_temp_cmd_buffer, "/%s%s", _current_node_str.c_str(), SENSOR_RECORD_FILE_PATH);
+  File file = SD.open(_temp_cmd_buffer);
+
+  if (!file)
+  {
+    Serial.printf("File %s didn't exist, attempt to create file...\n", _temp_cmd_buffer);
+    sprintf(node_file_dir,"/%s",_current_node_str.c_str());
+    _database.create_dir(SD, node_file_dir);
+    while (attempt_num-- > 0)
+    {
+
+      if(_database.write_file(SD, _temp_cmd_buffer, _cmd_buffer, false) == DATABASE_SUCCESS_WRITE_FILE)
+      {
+        Serial.printf("Create file %s successfully!\n", _temp_cmd_buffer);
+        break;
+      }
+      vTaskDelay(20);
+    }
+    if (attempt_num == 0)
+    {
+      Serial.println("Attempt storing data to node file failed! Ignore.");
+      _database.append_file(SD, _temp_cmd_buffer, _cmd_buffer, false);
+    }
+    else
+    {
+      Serial.println("Append data to node file success.");
+    }
+  }
+  else
+  {
+    Serial.printf("File %s has been already created, attempt data to file...\n");
+    if (_database.append_file(SD, _temp_cmd_buffer, _cmd_buffer, false))
+    {
+      Serial.println("Append data to node file success.");
+    }
+    else
+    {
+      Serial.println("Append data to node file failed, ignore.");
+    }
+  }
+}
+
+void Node::print_current_node_data_sensor()
+{
+  sprintf(_temp_cmd_buffer, "node_addr.txt=\"%s\"",_current_node_str.c_str());
+  this->_display.send_data_to_display(_temp_cmd_buffer);
+}
+
+void Node::print_node_lasted_data_sensor()
+{
+  // char node_file_path[20];
+  // memset(node_file_path, 0, 20);
+  int temp = 0;
+  sprintf(_temp_cmd_buffer, "/%s%s", _current_node_str.c_str(), SENSOR_RECORD_FILE_PATH);
+  File file = SD.open(_temp_cmd_buffer);
+  _database.get_number_of_line(SD, _temp_cmd_buffer, &temp);
+
+  if (!file)
+  {
+    Serial.printf("Open file %s node data sensor failed! Ignore.\n", _temp_cmd_buffer);
+  }
+  else
+  {
+    if (temp <= 0)
+    {
+      sprintf(this->_cmd_buffer,"node_data.txt+=\"%s\\r\"", "EMPTY");
+    }
+    else
+    {
+      for (int i = temp; i >= temp-5; i--)
+      {
+        this->_database.read_line(SD, _temp_cmd_buffer, this->_dsp_bucket_buffer, i);
+        sprintf(this->_cmd_buffer,"node_data.txt+=\"%s\\r\"", this->_dsp_bucket_buffer);
+        this->_display.send_data_to_display(this->_cmd_buffer);
+      }
+    }
   }
 }
 
@@ -862,30 +966,6 @@ void Node::handle_device_state_to_node(int state)
     Serial.println("Current node is not set! Ignore");
   }
 }
-
-// void Node::handle_get_system_state_from_user()
-// {
-//   // char temp_buff[5];
-//   // memset(temp_buff, 0, 5);
-//   // split_string_char(this->_cmd_buffer, '&', DES_ADDR_POSITION, temp_buff);
-//   // Node1.create_packet_data_and_send(temp_buff, "");
-// }
-// void Node::update_system_state_node(int state)
-// {
-//   Serial.printf("Send to display, state:%d\n", state);
-//   if (state == DEVICE_STATE_ON)
-//   {
-//     this->_display.send_data_to_display("t1.txt=\"ON\"");
-//   }
-//   else if (state == DEVICE_STATE_SAMPLE)
-//   {
-//     this->_display.send_data_to_display("t1.txt=\"ON SAMPLE\"");
-//   }
-//   else
-//   {
-//     this->_display.send_data_to_display("t1.txt=\"OFF\"");
-//   }
-// }
 
 void Node::reset_current_node_str()
 {
@@ -961,34 +1041,83 @@ void Node::handle_node_response(int code_num)
 
 void Node::store_time_setting_data(int type)
 {
-  int i = get_index_from_string(_cmd_buffer, ',', 0)+1;
+  int i = get_index_from_string(_cmd_buffer, ',', 0) + 1;
   if (type == EVENT_TIME_DATA)
   {
     strcpy(_evt_buffer, _cmd_buffer+i);
+    _evt_total = count_character(_evt_buffer, ',') + 1;
+    
+    Serial.println(_evt_buffer);
   }
   else
   {
     strcpy(_mt_buffer, _cmd_buffer+i);
+    if (strlen(_mt_buffer) > 0)
+    {
+      _mt_buffer[strlen(_mt_buffer)-1] = 0;
+    }
+    Serial.println(_mt_buffer);
   }
 }
 
-void Node::display_update_event_time()
+
+void Node::display_update_event_time(int pos)
 {
-  int k = 4;
+  int n, k = 4;
   char temp[10];
   split_string_char(this->_cmd_buffer, ',', 1, temp);
-  int n = strtol(temp,NULL, 10);
-  
+
+  if (pos == -1)
+    n = strtol(temp, NULL, 10);
+  else
+    n = pos;
+
   for (int i = n-1; i < n+3; i++)
   {
-    // memset(_temp_cmd_buffer, 0, 40);
     split_string_char(_evt_buffer, ',', i, temp);
-    sprintf(_temp_cmd_buffer,"b%d.txt=\"%s\"",k, temp);
+    if (i >= _evt_total)
+      sprintf(_temp_cmd_buffer,"b%d.txt=\"%s\"", k, "0:0");
+    else
+      sprintf(_temp_cmd_buffer,"b%d.txt=\"%s\"", k, temp);
+    
     this->_display.send_data_to_display(_temp_cmd_buffer);
-    // j += 1;
     k += 1;
   }
-  // Event_time_string_temp[6];
+}
+
+void Node::display_update_measure_time()
+{
+  unsigned char n = 6;
+  char temp[10];
+  char num_str[5];
+
+  if (strlen(_mt_buffer) == 0)
+  {
+    Serial.println("Measure time buffer empty");
+    return;
+  }
+
+
+  for (int i = 0; i < 3; i++)
+  {
+    split_string_char(_mt_buffer, ',', i, temp);
+
+    split_string_char(temp, '-', 0, num_str);
+    sprintf(_temp_cmd_buffer,"n%d.val=%s", n, num_str);
+    this->_display.send_data_to_display(_temp_cmd_buffer);
+    n += 1;
+    
+    split_string_char(temp, '-', 1, num_str);
+    sprintf(_temp_cmd_buffer,"n%d.val=%s", n, num_str);
+    this->_display.send_data_to_display(_temp_cmd_buffer);
+    n += 1;
+  }
+}
+
+void Node::handle_get_measure_event_time()
+{
+  sprintf(_temp_cmd_buffer, "MFAN,%s", _cmd_buffer);
+  Node1.create_packet_data_and_send(_current_node_str.c_str(), _temp_cmd_buffer);
 }
 
 /**
@@ -1015,11 +1144,23 @@ int Node::process_cmd()
   else if (str_startswith(this->_cmd_buffer, "ET_RESP"))
   {
     this->store_time_setting_data(EVENT_TIME_DATA);
+    this->display_update_event_time(1);
   }
   else if (str_startswith(this->_cmd_buffer, "MT_RESP"))
   {
     this->store_time_setting_data(MEASURE_TIME_DATA);
+    this->display_update_measure_time();
     // this->handle_device_state_to_node(DEVICE_STATE_SAMPLE);
+  }
+  else if (str_startswith(this->_cmd_buffer, "ET_REQ"))
+  {
+    strcpy(_cmd_buffer,"MFAN,ET_REQ");
+    Node1.create_packet_data_and_send(_current_node_str.c_str(), _cmd_buffer);
+  }
+  else if (str_startswith(this->_cmd_buffer, "MT_REQ"))
+  {
+    strcpy(_cmd_buffer,"MFAN,MT_REQ");
+    Node1.create_packet_data_and_send(_current_node_str.c_str(), _cmd_buffer);
   }
   else if (str_startswith(this->_cmd_buffer, "FORCE_EVENT_ON"))
   {
@@ -1031,45 +1172,49 @@ int Node::process_cmd()
     Node1.print_node_address();
     // RoutingTableService::printRoutingTable();
   }
-  // else if (str_startswith(this->_cmd_buffer,"SEND_BROADCAST"))       // need revise, cmd to test sending dummy data to a specific node, SEND_TO,(node address)
-  // {
-  //   strcpy(helloPacket->data_str, "Hello broadcast");
-  //   // //Create packet and send it.
-  //   // Radio.createPacketAndSend(BROADCAST_ADDR, helloPacket, 1);
-  // }
-  // else if (str_startswith(this->_cmd_buffer,"SEND_TO"))       // for sink nodes, SEND_TO,(node address), cmd
-  // {
-  //   // strcpy(helloPacket->data_str, "Hello from 6A08");
-  //   char addr[10];
-  //   memset(addr, 0, 10);
-  //   split_string_char(this->_cmd_buffer, ',', 1, addr);
-  //   uint16_t hex_int = strtol(addr, NULL, 16);
-
-  //   int char_pos = get_index_from_string(this->_cmd_buffer, ',', 1);
-  //   strcpy(helloPacket->data_str, this->_cmd_buffer + (char_pos+1));
-  //   Serial.println(helloPacket->data_str);
-  //   // //Create packet and send it.
-  //   // Radio.createPacketAndSend(hex_int, helloPacket, 1);
-  // }
-  // else if (str_startswith(this->_cmd_buffer,"SEND_CMD")) // for user node
-  // {
-  //   char data_str[30];
-  //   memset(data_str, 0, 30);
-  //   strcpy(data_str, _cmd_buffer);
-
-  //   int pos = strlen("SEND_CMD");
-  //   char temp_str[30];
-  //   memset(temp_str, 0, 30);
-  //   strncpy(temp_str,data_str+(pos+1),strlen(data_str));
-  //   Serial.println(temp_str);
-  //   Serial2.println(temp_str);
-  // }
+  else if (str_startswith(this->_cmd_buffer, "EVENT_TIME_SET")) // EVENT_TIME_SET,hours,minutes
+  {
+    this->handle_get_measure_event_time();
+  }
+  else if (str_startswith(this->_cmd_buffer, "ET_UPDATE")) // ET_UPDATE,position,hours,minutes
+  {
+    this->handle_get_measure_event_time();
+  }
+  else if (str_startswith(this->_cmd_buffer, "ET_DELETE")) // EVENT_DELETE,position
+  {
+    this->handle_get_measure_event_time();
+  }
+  else if (str_startswith(this->_cmd_buffer, "ET_DEL_TAIL")) // EVENT_DEL_TAIL
+  {
+    this->handle_get_measure_event_time();
+  }
+    else if (str_startswith(this->_cmd_buffer, "MAJOR_TIME_SET")) // MAJOR_TIME_SET,no_of_interval,minutes
+  {
+    this->handle_get_measure_event_time();
+  }
+  else if (str_startswith(this->_cmd_buffer, "MINOR_TIME_SET")) // MINOR_TIME_SET,no_of_interval,minutes
+  {
+    this->handle_get_measure_event_time();
+  }
+  else if (str_startswith(this->_cmd_buffer, "SPIKE_TIME_SET")) // SPIKE_TIME_SET,no_of_interval,seconds
+  {
+    this->handle_get_measure_event_time();
+  }
   else if (str_startswith(this->_cmd_buffer,"SDS")) // Send Data Sensor 
   {
+    // save to sd card
+    String des_node_addr;
     int pos = get_index_from_string(this->_cmd_buffer, ',', 0);
     this->_database.append_file(SD, SENSOR_RECORD_FILE_PATH, this->_cmd_buffer + pos + 1, false);
     Serial.println("Data sensor saved to file");
+    store_current_node_data_sensor();
     strcpy(this->_data_sensor_buffer,this->_cmd_buffer);
+    // send response to node
+
+    des_node_addr = String(_current_data_packet_info.source, HEX);
+    Node1.create_packet_data_and_send(des_node_addr.c_str(), "MFAN,MSG00");
+
+    // dispatch data to mqtt task to send to server
     int msg = SEND_SENSOR_DATA_SIGNAL;
 
     if (xQueueSend(this->_mqtt_msg_queue, (void *)&msg, 100) != pdTRUE)
@@ -1105,10 +1250,6 @@ int Node::process_cmd()
   { 
     this->_database.list_directory(SD, "/", 3);
   }
-  else if (str_startswith(this->_cmd_buffer, "GET_NODE_ROLE")) // GET_NODE_ROLE
-  { 
-    this->handle_get_node_role();
-  }
   else if (str_startswith(this->_cmd_buffer, "SN_ETR_PN")) // GET_NODE_ROLE
   {
     get_routing_node_address();
@@ -1130,7 +1271,26 @@ int Node::process_cmd()
   {
     this->display_print_date_time();
   }
-  else if (str_startswith(this->_cmd_buffer, "DSP_BP_E")) // for Display
+  else if (str_startswith(this->_cmd_buffer, "DSP_MQTT_INFO")) // for Display
+  {
+    this->send_mqtt_data_info();
+  }
+  else if (str_startswith(this->_cmd_buffer, "DSP_ET_UPDATE")) // for Display
+  {
+    this->display_update_event_time(-1);
+  }
+  else if (str_startswith(this->_cmd_buffer, "DSP_MT_UPDATE")) // for Display
+  {
+    this->display_update_measure_time();
+  }
+  else if (str_startswith(this->_cmd_buffer, "DSP_DSN")) // for Display
+  {
+    print_current_node_data_sensor();
+    print_node_lasted_data_sensor();
+    // store_current_node_data_sensor();
+    // this->handle_print_data_sensor_node(uint16_t node_address);
+  }
+    else if (str_startswith(this->_cmd_buffer, "DSP_BP_E")) // for Display
   {
     this->handle_print_data_bucket(DSP_ENTER);
   }
@@ -1141,22 +1301,6 @@ int Node::process_cmd()
   else if (str_startswith(this->_cmd_buffer, "DSP_BP_D")) // for Display
   {
     this->handle_print_data_bucket(DSP_DOWN);
-  }
-  else if (str_startswith(this->_cmd_buffer, "DSP_MQTT_INFO")) // for Display
-  {
-    this->send_mqtt_data_info();
-  }
-  else if (str_startswith(this->_buffer, "DSP_ET_UPDATE")) // for Display
-  {
-    this->display_update_event_time();
-  }
-  else if (str_startswith(this->_buffer, "DSP_MT_UPDATE")) // for Display
-  {
-
-  }
-  else if (str_startswith(this->_buffer, "DSP_DS")) // for Display
-  {
-    // this->handle_print_data_bucket(DSP_ENTER);
   }
   else if (str_startswith(this->_cmd_buffer, "WIFI_ST")) // WIFI_ST,(ssid),(password) : set wifi ssid and password for sink node
   {
@@ -1190,15 +1334,14 @@ int Node::process_cmd()
     this->handle_node_response(code_num);
     // this->handle_node_response(int code_num);
   }
-  // else if (str_startswith(this->_cmd_buffer, "URESP_SYS1")) // 
-  // {
-  //   this->update_system_state_node(DEVICE_STATE_ON);
-  // }
-  // else if (str_startswith(this->_cmd_buffer, "URESP_SYS0")) // 
-  // {
-  //   this->update_system_state_node(DEVICE_STATE_OFF);
-  //   // this->mqtt_setup();
-  // }
+  else if (str_startswith(this->_cmd_buffer, "RTC_DT_REQ"))
+  {
+    _rtc.get_date_time_string(_temp_cmd_buffer);
+    sprintf(_cmd_buffer,"SET_RTC_TIME,%s", _temp_cmd_buffer);
+    Serial.println(_cmd_buffer);
+    Serial2.println(_cmd_buffer);
+  }
+
   // else if (str_startswith(this->_buffer, "DSP_PAGE_BUCKET")) // for Display
   // {
   //   this->handle_print_data_bucket();
@@ -1207,6 +1350,7 @@ int Node::process_cmd()
   {
     Serial.println("Invalid command! Check is correct syntax");
   }
+  
   return 0;
 }
 /**
@@ -1271,30 +1415,10 @@ void print_packet(char *data)
   Serial.printf("Packet content received:%s\n", data);
 }
 
-// /**
-//  * @brief Iterate through the payload of the packet and print the counter of the packet
-//  *
-//  * @param packet
-//  */
-// void Node::print_data_packet(AppPacket<dataPacket>* packet) 
-// {
-//   Serial.printf("Packet arrived from %X with size %d\n", packet->src, packet->payloadSize);
-
-//   //Get the payload to iterate through it
-//   dataPacket* dPacket = packet->payload;
-//   size_t payloadLength = packet->getPayloadLength();
-
-//   for (size_t i = 0; i < payloadLength; i++) 
-//   {
-//     //Print the packet
-//     print_packet(dPacket[i]);
-//   }
-// }
-
 void Node::get_routing_node_address() 
 {
   //Set the routing table list that is being used and cannot be accessed (Remember to release use after usage)
-  memset(this->_dsp_node_addr,0,LORA_MAX_NODE_ADDRESS*sizeof(uint16_t));
+  memset(this->_dsp_node_addr,0, LORA_MAX_NODE_ADDRESS*sizeof(uint16_t));
   int j = 0;
   for (int i = 0; i < MAX_ADDRESS_NODE; i++)
   {
@@ -1305,33 +1429,9 @@ void Node::get_routing_node_address()
       j++;
     }
   }
-
-  // LM_LinkedList<RouteNode>* routingTableList = Radio.routingTableListCopy();
-
-  // routingTableList->setInUse();
-
-  // Screen.changeSizeRouting(Radio.routingTableSize());
-
-  // char text[15];
-  // for (int i = 0; i < Radio.routingTableSize(); i++)
-  // {
-  //   RouteNode* rNode = (*routingTableList)[i];
-  //   NetworkNode node = rNode->networkNode;
-  //   snprintf(text, 15, ("|%X(%d)->%X"), node.address, node.metric, rNode->via);
-  //   this->_dsp_node_addr[i] = node.address;
-  //   // Screen.changeRoutingText(text, i);
-  // }
-
-  // //Release routing table list usage.
-  // routingTableList->releaseInUse();
-
-  // //Delete the routing table list
-  // delete routingTableList;
-
-  // Screen.changeLineFour();
 }
 
-char temp_received_msg_buff[100];
+// char temp_received_msg_buff[100];
 
 void Node::handle_process_received_message()
 {
@@ -1348,30 +1448,7 @@ void Node::handle_process_received_message()
     // Serial.printf("Packet received, content is: %s\n",buffer+pos+1);
     User_receive_queue.delete_head();
     Serial.println(this->_LoRa_buffer+pay_load_pos);
-    // Serial.printf("Queue receiveUserData size: %d\n", Radio.getReceivedQueueSize());
 
-    //Get the first element inside the Received User Packets Queue
-    // AppPacket<dataPacket>* packet = Radio.getNextAppPacket<dataPacket>();
-    // led_Flash(3, 200);
-    // Print the data packet
-    // print_data_packet(packet);
-
-    // if (packet->dst == BROADCAST_ADDR)
-    // {
-    //   // do something
-    // }
-    // else
-    // {
-
-    // }
-
-    // dataPacket* dPacket = packet->payload;
-    // strcpy(this->_LoRa_buffer, dPacket[0].data_str);
-    // if (str_startswith(this->_LoRa_buffer, "MSG00"))
-    // {
-    //   if (this->_device_role == NODE_USER)
-    //     Serial2.println("MSG00");
-    // }
     if (str_startswith(this->_LoRa_buffer + pay_load_pos, "MFSN")) // Message For Sink Node : message that users send to sink node
     {
       int msg = LORA_NODE_DATA_SIGNAL;
@@ -1384,16 +1461,6 @@ void Node::handle_process_received_message()
         Serial.println("From LoRa: CMD event queue is full");
       }
       vTaskDelay(20);
-      // int pos = get_index_from_string(this->_LoRa_buffer+pay_load_pos, ',', 0);
-      // Serial.println(this->_LoRa_buffer + (pos+1));
-      // memset(temp_received_msg_buff,0,100);
-      // strcpy(temp_received_msg_buff, this->_LoRa_buffer + (pos+1));
-      // memset(this->_LoRa_buffer,0,100);
-      // strcpy(this->_LoRa_buffer, temp_received_msg_buff);
-      
-      // memset(helloPacket->data_str, 0, 75);
-      // strcpy(helloPacket->data_str, "MSG00");
-      // Radio.createPacketAndSend(packet->src, helloPacket, 1);
     }
     else if (str_startswith(this->_LoRa_buffer+pay_load_pos, "MFAN")) // Message For Actuator Node : message that sink node send to actuator node
     {
@@ -1401,46 +1468,7 @@ void Node::handle_process_received_message()
       int actuator_payload_pos = get_index_from_string(this->_LoRa_buffer, ',', 0) + 1;
       Serial.println(this->_LoRa_buffer+actuator_payload_pos);
       Serial2.println(this->_LoRa_buffer+actuator_payload_pos);
-      // int pos = get_index_from_string(this->_LoRa_buffer, ',', 0);
-      // Serial.println(this->_LoRa_buffer + (pos+1));
-
-      // if (str_startswith(this->_LoRa_buffer + (pos+1), "UN_")) // header has this format means the data is for user node, not for actuator node
-      // {
-
-      // }
-      // else  // send to actuator node
-      // {
-      //   Serial2.println(this->_LoRa_buffer + (pos+1));
-      // }
-      // memset(helloPacket->data_str, 0, 50);
-      // strcpy(helloPacket->data_str, "MSG00");
-      // Radio.createPacketAndSend(packet->src, helloPacket, 1);
     }
-
-    //Create packet and send it.
-    // Radio.createPacketAndSend(BROADCAST_ADDR, helloPacket, 1);
-    //Delete the packet when used. It is very important to call this function to release the memory of the packet.
-    // Radio.deletePacket(packet);
   }
 }
-
-/**
- * @brief Create a Receive Messages Task and add it to the LoRaMesher
- *
- */
-// void createReceiveMessages()
-// {
-//   int res = xTaskCreate(
-//       processReceivedPackets,
-//       "Receive App Task",
-//       4096,
-//       (void*) 1,
-//       2,
-//       &receiveLoRaMessage_Handle);
-
-//     if (res != pdPASS)
-//     {
-//         Serial.printf("Error: Receive App Task creation gave error: %d\n", res);
-//     }
-// }
 

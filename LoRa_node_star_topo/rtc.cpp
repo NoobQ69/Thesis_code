@@ -232,6 +232,29 @@ void Rtc::print_date_time()
       Serial.println();
   }
 }
+void Rtc::get_date_time_string(char *string_to_store)
+{
+  char datestring[26];
+  RtcDateTime dt = Rtc1.GetDateTime();
+  
+  if (!wasError("loop GetDateTime"))
+  {
+    // print_date_time(dt);
+    snprintf_P(datestring, 
+            countof(datestring),
+            PSTR("%02u,%02u,%04u,%02u,%02u,%02u"),
+            dt.Hour(),
+            dt.Minute(),
+            dt.Second(),
+            dt.Day(),
+            dt.Month(),
+            dt.Year()
+            );
+
+    strcpy(string_to_store, datestring);
+  }
+  // Serial.print(datestring);
+}
 
 void Rtc::print_date_time(const RtcDateTime& dt)
 {

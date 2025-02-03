@@ -36,6 +36,7 @@ class Rtc
     int get_day();
     int get_month();
     int get_year();
+    void get_date_time_string(char *string_to_store);
     void print_date_time();
     void print_date_time(const RtcDateTime& dt);
     String get_data_time(String format = "%A, %B %d %Y %H:%M:%S");

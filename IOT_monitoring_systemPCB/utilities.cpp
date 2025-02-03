@@ -108,9 +108,10 @@ void convert_int_to_str(int N, char *str)
   }
 }
 
-int count_character(const char *string, int len, char char_indicator)
+int count_character(const char *string, char char_indicator)
 {
   int count = 0;
+  int len = strlen(string);
   for (int i = 0; i < len; i++)
   {
     if (string[i] == char_indicator)

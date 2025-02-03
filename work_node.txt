@@ -1,6 +1,0 @@
-packet structure
-source and destination addresses
-Sequence number
-Check sum
-Acknowledgement
-Assembly

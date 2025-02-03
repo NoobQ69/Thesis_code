@@ -67,12 +67,12 @@ void setup() {
   Serial.begin(9600);
   Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
   device.callbackfnc = callback;
-  device.begin();
+  device.create_task(LoRa_transceiver_task, "Serial 2 task", 4096, NULL,  4, &LoRa_transceiver_task_handler, App_cpu);
   device.create_task(input_task, "Input task", 8192, NULL,   4, &input_task_handler, App_cpu);
   device.create_task(store_data_to_database_task, "Store db task", 8192, NULL,  4, &store_db_task_handler, App_cpu);
-  device.create_task(LoRa_transceiver_task, "Serial 2 task", 4096, NULL,  4, &LoRa_transceiver_task_handler, App_cpu);
   device.create_task(handle_commandline_task, "H C task", 8192, NULL, 4, &handle_cmd_task_handler, App_cpu);
-  Serial.println("Done");
+  device.begin();
+  // Serial.println("Done");
   // device.create_task(buttons_task,                "Btn task", 4096, NULL,  4, &btn_task_handler, App_cpu);
 }
 

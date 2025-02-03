@@ -68,6 +68,7 @@ typedef struct
   uint8_t pump_1_state_flag;
   char    current_page_flag;
   uint8_t current_data_signal;
+  uint8_t curr_date_state;
   uint8_t data_sensor_remaining_flag;
 
 } Device_flags;
@@ -151,6 +152,7 @@ class IOT_device
 
     // QueueHandle_t        _cmd_msg_queue;
     // QueueHandle_t        _cmd_msg_queue;
+    void handle_process_date_value();
    /**
      * @brief update state of the device: ON, OFF
      *
@@ -171,6 +173,24 @@ class IOT_device
      * @return none
      */
     void display_update_measure_time(Measure_event_time_t *m_time, int time_type);
+    /**
+     * @brief update measure time to display
+     *
+     * @return none
+     */
+    void send_event_time_to_sink();
+    /**
+     * @brief update measure time to display
+     *
+     * @return none
+     */
+    void send_measure_time_to_sink();
+    /**
+     * @brief update measure time to display
+     *
+     * @return none
+     */
+    void convert_measure_time_setting_to_str();
     
    /**
      * @brief update time to display periodically
@@ -560,11 +580,11 @@ class IOT_device
      *
      * @return None
      */
-    void        handle_set_date_time();
+    int        handle_set_date_time();
    /**
      * @brief handle save setting data to SD card, setting is event time, measure time  
-     *
-     * @return None
+     * 
+     * @return 1 if date time is valid and configured successfully, 0 if date time format is not valid 
      */
     void        handle_save_setting();
    /**

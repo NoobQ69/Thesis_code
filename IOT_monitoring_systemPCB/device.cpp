@@ -120,7 +120,7 @@ IOT_device::IOT_device()
   // this->_timer_counter = 0;
   
   // Init flags
-  this->_device_state                                     = DEVICE_STATE_FLOAT;
+  this->_device_state                                     = DEVICE_STATE_ON;
   this->_device_on_state                                  = DEVICE_ON_IDLE;
   this->_device_role                                      = NODE_ACTUATOR_DEVICE;
   this->_device_flags.forcing_to_event_flag               = DISABLE;
@@ -130,6 +130,7 @@ IOT_device::IOT_device()
   this->_device_flags.on_event_error_flag                 = ON_EVENT_ERROR_NONE;
   this->_device_flags.current_page_flag                   = 0;
   this->_device_flags.current_data_signal                 = NO_DATA_SIGNAL;
+  this->_device_flags.curr_date_state                     = RESET;
   this->_dsp_current_line_bucket                          = 0;
   this->_device_flags.data_sensor_remaining_flag          = RESET;
 
@@ -215,11 +216,33 @@ int IOT_device::begin()
       if (_sensor_data_remain <= 0) {_sensor_data_remain = 0; break;}
     }
   }
+  // get rtc from user node
+  int timeout_counting = 5, curr_time, previous_time = 0;
+  Serial2.println("RTC_DT_REQ");
+
+  while (timeout_counting > 0 && _device_flags.curr_date_state == RESET)
+  {
+    curr_time = millis();
+    handle_data_from_transceiver();
+
+    if (curr_time - previous_time > 1000)
+    {
+      previous_time = millis();
+      if (_device_flags.curr_date_state == RESET)
+      {
+        Serial.println("Request date from controller: time out, request again.");
+        Serial2.println("RTC_DT_REQ");
+      }
+      timeout_counting--;
+    }
+  }
+
   // for (int i = 0; i < 3; i++)
   // {
   //   on_buzzer();
   // }
   // this->_database.write_file(SD, "/log.txt","log", true);
+  set_device_state(DEVICE_STATE_ON);
   return 0;
 }
 
@@ -326,8 +349,6 @@ void IOT_device::reset_measure_event_params()
   this->timer_reset();
   this->reset_timer_counter();
   this->_actuators.set_actuators_pin(FAN_1_PIN, LOW);
-  this->_actuators.set_actuators_pin(CYLINDER_1_PIN, LOW);
-  this->_actuators.set_actuators_pin(CYLINDER_2_PIN, LOW);
   // this->_actuators.set_actuators_pin(FAN_A_PIN, LOW);
   // this->_actuators.set_actuators_pin(PUMP_1_PIN, LOW);
   this->_device_flags.forcing_to_event_flag = DISABLE;
@@ -341,6 +362,9 @@ void IOT_device::reset_measure_event_params()
   this->_setpoint_measure_spike_time.number_of_intervals = 0;
   this->_setpoint_measure_spike_time.time = 0;
   this->_device_on_state = DEVICE_ON_IDLE;
+  vTaskDelay(5000);
+  this->_actuators.set_actuators_pin(CYLINDER_1_PIN, LOW);
+  this->_actuators.set_actuators_pin(CYLINDER_2_PIN, LOW);
 }
 
 bool IOT_device::check_is_measure_event_started()
@@ -429,15 +453,15 @@ int IOT_device::add_event_time(DATE_t *event_time, int position = -1)
 
   if (position != -1)
   {
-    this->_measure_events.event_time.time[position] = *event_time;
+    this->_measure_events.event_time.time[position-1] = *event_time;
     // this->_measure_events.event_time.number_of_event_time += 1;
-    sort_date_time_array(this->_measure_events.event_time.time, this->_measure_events.event_time.number_of_event_time,cmp_date_time);
+    sort_date_time_array(this->_measure_events.event_time.time, this->_measure_events.event_time.number_of_event_time, cmp_date_time);
     return VALID;
   }
 
   this->_measure_events.event_time.time[len] = *event_time;
   this->_measure_events.event_time.number_of_event_time += 1;
-  sort_date_time_array(this->_measure_events.event_time.time, this->_measure_events.event_time.number_of_event_time,cmp_date_time);
+  sort_date_time_array(this->_measure_events.event_time.time, this->_measure_events.event_time.number_of_event_time, cmp_date_time);
   return VALID;
 }
 
@@ -504,20 +528,20 @@ int IOT_device::check_is_valid_spike_time(Measure_time_t *spike_time)
 
 uint8_t IOT_device::handle_get_measure_event_time(int type)
 {
-  int result = INVALID;
+  int result = INVALID, code_resp = 255;
   int params[3];
-  char string_time_number[4];
+  // char string_time_number[4];
   int len = this->_measure_events.event_time.number_of_event_time;
   DATE_t event_time = {0, 0, 0, 0, 0, 0};
   Measure_time_t sub_event_time;
 
-  int num_of_param = count_character(this->_buffer,strlen(this->_buffer), ',');
+  int num_of_param = count_character(this->_buffer, ',');
 
   for (int i = 0; i < num_of_param; i++)
   {
-    split_string_char(this->_buffer, ',', i+1, string_time_number);
-    params[i] = convert_string_to_int(string_time_number, strlen(string_time_number));
-    memset(string_time_number, 0, 4);
+    split_string_char(this->_buffer, ',', i+1, _temp_buffer);
+    params[i] = strtol(_temp_buffer, NULL, 10);
+    // memset(_temp_buffer, 0, 4);
   }
   
   // split_string_char(this->_buffer, ',', 2, string_time_number);
@@ -531,11 +555,13 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
     if (this->check_is_valid_event_time(&event_time) == VALID)
     {
       result = this->add_event_time(&event_time);
+      code_resp = (result == VALID) ? RESP_ET_GS : RESP_ET_GF;
     }
     else
     {
       Serial.println("Error add event time: Invalid event time! Check input value");
       result = INVALID;
+      code_resp = RESP_ET_GF;
     }
   }
   else if (type == EVENT_TIME_UPDATE)
@@ -546,11 +572,13 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
     if (this->check_is_valid_event_time(&event_time) == VALID)
     {
       result = this->add_event_time(&event_time, params[0]);
+      code_resp = (result == VALID) ? RESP_ET_GS : RESP_ET_GF;
     }
     else
     {
       Serial.println("Error update event time: Invalid event time! Check input value");
       result = INVALID;
+      code_resp = RESP_ET_GF;
     }
   }
   else if (type == EVENT_TIME_DELETE)
@@ -559,6 +587,7 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
                                                             (int)this->_measure_events.event_time.number_of_event_time,
                                                             params[0]);
     result = VALID;
+    code_resp = RESP_ET_GS;
   }
   else if (type == EVENT_TIME_DELETE_TAIL)
   {
@@ -566,6 +595,7 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
     this->_measure_events.event_time.time[this->_measure_events.event_time.number_of_event_time-1].minutes = 0;
     this->_measure_events.event_time.number_of_event_time -= 1;
     result = VALID;
+    code_resp = RESP_ET_GS;
   }
   else if (type == MAJOR_TIME)
   {
@@ -576,11 +606,13 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
     {
       this->_measure_events.major_time = sub_event_time;
       result = VALID;
+      code_resp = RESP_MT_GS;
     }
     else
     {
       Serial.println("Error major time: Invalid major time! Check input value");
       result = INVALID;
+      code_resp = RESP_MT_GF;
     }
   }
   else if (type == MINOR_TIME)
@@ -592,11 +624,13 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
     {
       this->_measure_events.minor_time = sub_event_time;
       result = VALID;
+      code_resp = RESP_MT_GS;
     }
     else
     {
       Serial.println("Error minor time: Invalid minor time! Check input value");
       result = INVALID;
+      code_resp = RESP_MT_GF;
     }
   }
   else if (type == SPIKE_TIME)
@@ -608,11 +642,13 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
     {
       this->_measure_events.spike_time = sub_event_time;
       result = VALID;
+      code_resp = RESP_MT_GS;
     }
     else
     {
       Serial.println("Error spike time: Invalid spike time! Check input value");
       result = INVALID;
+      code_resp = RESP_MT_GF;
     }
   }
 
@@ -644,6 +680,13 @@ uint8_t IOT_device::handle_get_measure_event_time(int type)
       else
         this->_display.send_data_to_display("st_label.txt=\"ERROR\"");
     }
+  }
+
+  if (_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+  {
+    Serial.printf("Response code number : %d\n", code_resp);
+    sprintf(_temp_buffer, "MFSN,NRESP,%d", code_resp);
+    Serial2.println(_temp_buffer);
   }
 
   return 0;
@@ -909,10 +952,16 @@ void IOT_device::reset_sensor_data()
   this->_sensors_data_bucket.pressure_data = 0;
 }
 
-void IOT_device::handle_set_date_time()
+int IOT_device::handle_set_date_time()
 {
   int date_time_arr[] = {0, 0, 0, 1, 1, 2024};
   char time_buffer[5];
+  
+  if (count_character(_buffer, ',') < 6)
+  {
+    Serial.println("Set current date: Request is not valid!");
+    return 0;
+  }
   
   for (int i = 0; i < 6; i++)
   {
@@ -926,6 +975,15 @@ void IOT_device::handle_set_date_time()
   {
     this->_display.send_data_to_display("st_label.txt=\"OK\"");
   }
+  else if (this->_device_flags.current_data_signal == SERIAL_DATA_SIGNAL)
+  {
+    Serial.print("Date time is set to: ");
+    _rtc.print_get_data_time("%H:%M:%S-%d/%b/%Y");
+    Serial.println();
+  }
+  _device_flags.curr_date_state = SET;
+
+  return 1;
 }
 
 void IOT_device::handle_save_setting()
@@ -967,34 +1025,34 @@ void IOT_device::handle_save_setting()
   this->_database.append_file(SD, SETTING_FILE_PATH, this->_setting_buffer,false);
 }
 
-void IOT_device::convert_event_time_setting_to_str()
-{
-  Serial.print("Event time string:");
-  
-  for (int i = 0; i < len; i++)
-  {
-    sprintf(this->_setting_buffer,"MFSN,ET_RESP");
-    sprintf(_temp_buffer, ",%d:%d",this->_measure_events.event_time.time[i].hours, this->_measure_events.event_time.time[i].minutes);
-    strcat(_buffer, _temp_buffer);
-  }
+// void IOT_device::convert_event_time_setting_to_str()
+// {
+//   Serial.print("Event time string:");
+//   int len = _measure_events.event_time.number_of_event_time;
+//   for (int i = 0; i < len; i++)
+//   {
+//     sprintf(this->_setting_buffer,"MFSN,ET_RESP");
+//     sprintf(_temp_buffer, ",%d:%d",this->_measure_events.event_time.time[i].hours, this->_measure_events.event_time.time[i].minutes);
+//     strcat(_buffer, _temp_buffer);
+//   }
 
-  Serial.println(_buffer);
-}
+//   Serial.println(_buffer);
+// }
 
-void IOT_device::convert_measure_time_setting_to_str()
-{
-  Serial.print("Measure time string:");
-  // memset(this->_setting_buffer, 0, SETTING_MAX_BUFFER);
-  sprintf(_buffer,"MT_RESP",
-  sprintf(_temp_buffer,",%d,%d", this->_measure_events.major_time.number_of_intervals, this->_measure_events.major_time.time);
-  strcat(_buffer, _temp_buffer);
-  sprintf(_temp_buffer,",%d,%d", this->_measure_events.minor_time.number_of_intervals, this->_measure_events.minor_time.time);
-  strcat(_buffer, _temp_buffer);
-  sprintf(_temp_buffer,",%d,%d",this->_measure_events.spike_time.number_of_intervals, this->_measure_events.spike_time.time);
-  strcat(_buffer, _temp_buffer);
+// void IOT_device::convert_measure_time_setting_to_str()
+// {
+//   Serial.print("Measure time string:");
+//   memset(this->_buffer, 0, CMD_MAX_BUFFER);
+//   strcpy(_buffer,"MT_RESP");
+//   sprintf(_temp_buffer,",%d,%d", this->_measure_events.major_time.number_of_intervals, this->_measure_events.major_time.time);
+//   strcat(_buffer, _temp_buffer);
+//   sprintf(_temp_buffer,",%d,%d", this->_measure_events.minor_time.number_of_intervals, this->_measure_events.minor_time.time);
+//   strcat(_buffer, _temp_buffer);
+//   sprintf(_temp_buffer,",%d,%d",this->_measure_events.spike_time.number_of_intervals, this->_measure_events.spike_time.time);
+//   strcat(_buffer, _temp_buffer);
   
-  Serial.println(this->_buffer);
-}
+//   Serial.println(this->_buffer);
+// }
 
 int IOT_device::on()
 {
@@ -1408,6 +1466,53 @@ void IOT_device::display_update_device_state()
   }
 }
 
+void IOT_device::send_event_time_to_sink()
+{
+  int j = 0, k = 4;
+  char temp[3];
+  // split_string_char(this->_buffer, ',', 1, temp);
+  // int n = convert_string_to_int(temp,2);
+
+  memset(_buffer, 0, CMD_MAX_BUFFER);
+  strcpy(_buffer, "MFSN,ET_RESP");
+  
+  for (int i = 0; i < _measure_events.event_time.number_of_event_time; i++)
+  {
+    // memset(_temp_buffer, 0, 40);
+    sprintf(_temp_buffer,",%d:%d",
+                      this->_measure_events.event_time.time[i].hours,
+                      this->_measure_events.event_time.time[i].minutes);
+    strcat(_buffer, _temp_buffer);
+    // this->_display.send_data_to_display(Event_time_string_temp);
+    j += 1;
+    k += 1;
+  }
+  Serial.println(_buffer);
+  Serial2.println(_buffer);
+}
+
+void IOT_device::send_measure_time_to_sink()
+{
+  memset(_buffer, 0, CMD_MAX_BUFFER);
+  strcpy(_buffer,"MFSN,MT_RESP");
+
+  // memset(_temp_buffer, 0, 20);
+  sprintf(_temp_buffer,",%d-%d", _measure_events.major_time.time, _measure_events.major_time.number_of_intervals);
+  strcat(_buffer, _temp_buffer);
+  
+  // memset(_temp_buffer, 0, 20);
+  sprintf(_temp_buffer,",%d-%d", _measure_events.minor_time.time, _measure_events.minor_time.number_of_intervals);
+  strcat(_buffer, _temp_buffer);
+  
+  // memset(_temp_buffer, 0, 20);
+  sprintf(_temp_buffer,",%d-%d", _measure_events.spike_time.time, _measure_events.spike_time.number_of_intervals);
+  strcat(_buffer, _temp_buffer);
+    // this->_display.send_data_to_display(_temp_buffer);
+  
+  Serial.println(_buffer);
+  Serial2.println(_buffer);
+}
+
 void IOT_device::display_update_event_time()
 {
   int j = 0, k = 4;
@@ -1415,70 +1520,26 @@ void IOT_device::display_update_event_time()
   split_string_char(this->_buffer, ',', 1, temp);
   int n = convert_string_to_int(temp,2);
   
-  if (_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+  for (int i = n-1; i < n+3; i++)
   {
-    memset(_buffer, 0, CMD_MAX_BUFFER);
-    strcpy(_buffer, "MFSN,ET_RESP");
-    
-    for (int i = n-1; i < n+3; i++)
-    {
-      // memset(_temp_buffer, 0, 40);
-      sprintf(_temp_buffer,",b%d.txt=\"%d:%d\",", k,
-                        this->_measure_events.event_time.time[i].hours,
-                        this->_measure_events.event_time.time[i].minutes);
-      strcat(_buffer, _temp_buffer);
-      // this->_display.send_data_to_display(Event_time_string_temp);
-      j += 1;
-      k += 1;
-    }
-    Serial2.println(_buffer);
-  }
-  else
-  {
-    for (int i = n-1; i < n+3; i++)
-    {
-      memset(_temp_buffer, 0, 40);
-      sprintf(_temp_buffer,"b%d.txt=\"%d:%d\"",k,
-                        this->_measure_events.event_time.time[i].hours,
-                        this->_measure_events.event_time.time[i].minutes);
-      this->_display.send_data_to_display(_temp_buffer);
-      j += 1;
-      k += 1;
-    }
+    memset(_temp_buffer, 0, 40);
+    sprintf(_temp_buffer,"b%d.txt=\"%d:%d\"",k,
+                      this->_measure_events.event_time.time[i].hours,
+                      this->_measure_events.event_time.time[i].minutes);
+    this->_display.send_data_to_display(_temp_buffer);
+    j += 1;
+    k += 1;
   }
   // Event_time_string_temp[6];
 }
 
 void IOT_device::display_update_measure_time(Measure_event_time_t *m_time, int time_type)
 {
-  if (_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+  for (int i = 0; i < 3; i++)
   {
-    memset(_buffer, 0, CMD_MAX_BUFFER);
-    strcpy(_buffer,"MFSN,MT_RESP");
-
-    // memset(_temp_buffer, 0, 20);
-    sprintf(_temp_buffer,",%d-%d", m_time->major_time.time, m_time->major_time.number_of_intervals);
-    strcat(_buffer, _temp_buffer);
-    
-    // memset(_temp_buffer, 0, 20);
-    sprintf(_temp_buffer,",%d-%d", m_time->minor_time.time, m_time->minor_time.number_of_intervals);
-    strcat(_buffer, _temp_buffer);
-    
-    // memset(_temp_buffer, 0, 20);
-    sprintf(_temp_buffer,",%d-%d", m_time->spike_time.time, m_time->spike_time.number_of_intervals);
-    strcat(_buffer, _temp_buffer);
-      // this->_display.send_data_to_display(_temp_buffer);
-    
-    Serial2.println(_buffer);
-  }
-  else
-  {
-    for (int i = 0; i < 3; i++)
-    {
-      _display_send_measure_time(&m_time->major_time, 0);
-      _display_send_measure_time(&m_time->minor_time, 2);
-      _display_send_measure_time(&m_time->spike_time, 4);
-    }
+    _display_send_measure_time(&m_time->major_time, 0);
+    _display_send_measure_time(&m_time->minor_time, 2);
+    _display_send_measure_time(&m_time->spike_time, 4);
   }
 }
 
@@ -1593,9 +1654,7 @@ int IOT_device::process_cmd()
   {
     this->_sensors.read();
     this->_sensors.print_data_serial();
-  } 
-  // else if (str_startswith(this->_buffer, "CYLINDER2_ON"))          { this->_actuators.set_actuators_pin(PUMP_1_PIN, HIGH); }
-  // else if (str_startswith(this->_buffer, "CYLINDER2_OFF"))         { this->_actuators.set_actuators_pin(PUMP_1_PIN, LOW); }
+  }
   else if (str_startswith(this->_buffer, "MFSN,SDS")) // SDS,(data sensor)
   {
       // Serial.println("Data send to sink node is too long! Ignore");
@@ -1641,14 +1700,20 @@ int IOT_device::process_cmd()
   else if (str_startswith(this->_buffer, "MAJOR_TIME_SET")) // MAJOR_TIME_SET,no_of_interval,minutes
   {
     this->handle_get_measure_event_time(MAJOR_TIME);
+    if (this->_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+      handle_save_setting();
   }
   else if (str_startswith(this->_buffer, "MINOR_TIME_SET")) // MINOR_TIME_SET,no_of_interval,minutes
   {
     this->handle_get_measure_event_time(MINOR_TIME);
+    if (this->_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+      handle_save_setting();
   }
   else if (str_startswith(this->_buffer, "SPIKE_TIME_SET")) // SPIKE_TIME_SET,no_of_interval,seconds
   {
     this->handle_get_measure_event_time(SPIKE_TIME);
+    if (this->_device_flags.current_data_signal == LORA_NODE_DATA_SIGNAL)
+      handle_save_setting();
   }
   else if (str_startswith(this->_buffer, "PRINT_MEASURE_TIME_EVENT")) // PRINT_MEASURE_TIME_EVENT
   {
@@ -1701,8 +1766,6 @@ int IOT_device::process_cmd()
   else if (str_startswith(this->_buffer, "DSP_MT_UPDATE")) // for Display
   {
     this->display_update_measure_time(&this->_measure_events, MAJOR_TIME); // the second parameter is deprecated
-    // this->display_update_measure_time(&this->_measure_events.minor_time, MINOR_TIME);
-    // this->display_update_measure_time(&this->_measure_events.spike_time, SPIKE_TIME);
   }
   else if (str_startswith(this->_buffer, "DSP_BP_E")) // for Display
   {
@@ -1720,9 +1783,21 @@ int IOT_device::process_cmd()
   {
     this->send_sensor_data_to_display();
   }
+  else if (str_startswith(this->_buffer, "ET_REQ"))
+  {
+    send_event_time_to_sink();
+  }
+  else if (str_startswith(this->_buffer, "MT_REQ"))
+  {
+    send_measure_time_to_sink();
+  }
+  else if (str_startswith(this->_buffer, "RTC_RES"))
+  {
+
+  }
   else
   {
-    Serial.println("Invalid command! Check is correct syntax");
+    Serial.println("Invalid command! Check is syntax correct");
   }
   Serial.println("Command processed!");
   return 0;

@@ -19,6 +19,7 @@ class Database
   public:
     Database();
     int  begin();
+    int create_dir(fs::FS &fs, const char * path);
     int  list_directory(fs::FS &fs, const char * dirname, uint8_t levels);
     int  create_diretory(fs::FS &fs, const char * path);
     int  remove_directory(fs::FS &fs, const char * path);

@@ -9,20 +9,7 @@
 #define RXD2 16
 #define TXD2 17
 
-// LoraMesher& radio = LoraMesher::getInstance();
-
-// char Buffer[50];
 Node LoRa_node;
-//Led flash
-// void led_Flash(uint16_t flashes, uint16_t delaymS) {
-//     uint16_t index;
-//     for (index = 1; index <= flashes; index++) {
-//         digitalWrite(BOARD_LED, LED_ON);
-//         delay(delaymS);
-//         digitalWrite(BOARD_LED, LED_OFF);
-//         delay(delaymS);
-//     }
-// }
 
 /**
  * @brief Function that process the received packets
@@ -88,14 +75,14 @@ void display_task(void*)
  * @brief Function that process the received packets
  *
  */
-void mqtt_task(void*)
-{
-  for (;;) 
-  {
-    LoRa_node.handle_mqtt_communication();
-    vTaskDelay(100);
-  }
-}
+// void mqtt_task(void*)
+// {
+//   for (;;) 
+//   {
+//     LoRa_node.handle_mqtt_communication();
+//     vTaskDelay(100);
+//   }
+// }
 /**
  * @brief Function that process the received packets
  *
@@ -123,7 +110,7 @@ void setup()
   LoRa_node.serial_task = serial_task;
   LoRa_node.buttons_task = buttons_task;
   LoRa_node.display_task = display_task;
-  LoRa_node.mqtt_task = mqtt_task;
+  // LoRa_node.mqtt_task = mqtt_task;
   LoRa_node.actuator_data_task = actuator_data_msg_task;
   LoRa_node.begin();
 
@@ -149,6 +136,7 @@ void loop()
     // LoRa_node.handle_data_from_actuator_node();
     vTaskDelete(NULL);
   }
+  vTaskDelay(10);
   // process_cmd_from_serial();
     // for (;;) {
     // }
