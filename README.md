@@ -1,3 +1,3 @@
-- The software for capstone project
-- In progress
-- No copyright
+- The software for the capstone project
+- For current development, IOT_monitoring_systemPCB and LoRa_node_star_topo, the project in IOT_monitoring_system and LoRa_node is using star network topo, mesh network topo implementation is deprecated and is not developed.
+- Circuit design and view look of the system will be updated soon.
